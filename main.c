@@ -165,6 +165,9 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   
   ucWarmCold/=CT_SCOPE;         // 0 - 1000
   
+  // Convert brightness with quadratic function 
+  ucBright = ucBright * ucBright / 100;
+  
   pwm_Warm = (1000 - ucWarmCold)*ucBright/1000 ;
 
   pwm_Cold = ucWarmCold*ucBright/1000 ;
