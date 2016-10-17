@@ -70,8 +70,9 @@ void Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
   
   // Init Flash Read & Write
-  FLASH_Unlock(FLASH_MEMTYPE_DATA);
   FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
+  FLASH_Unlock(FLASH_MEMTYPE_DATA);
+  while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
   
   uint8_t WriteBuf[FLASH_BLOCK_SIZE];
   uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
@@ -113,9 +114,9 @@ void LoadConfig()
       gConfig.version = XLA_VERSION;
       gConfig.nodeID = BASESERVICE_ADDRESS;  // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
       gConfig.present = 0;
-      gConfig.type = 4;  // devtypWRing3
+      gConfig.type = devtypWRing3;
       gConfig.ring1.State = 1;
-      gConfig.ring1.BR = 50;
+      gConfig.ring1.BR = DEFAULT_BRIGHTNESS;
       gConfig.ring1.CCT = CT_MIN_VALUE;
       gConfig.ring1.R = 0;
       gConfig.ring1.G = 0;
@@ -173,13 +174,6 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   pwm_Cold = ucWarmCold*ucBright/1000 ;
 }
 
-// Bring the lights to default status
-void LightsInit(void)
-{
-  CCT2ColdWarm(DEVST_Bright, DEVST_WarmCold);
-  driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
-}
-
 int main( void ) {
   uint8_t bMsgReady = 0;
   
@@ -196,11 +190,12 @@ int main( void ) {
   //while(NRF24L01_Check());
 
   // Load config from Flash
+  FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
   
-  // Bring the lights to default status
-  LightsInit();
+  // Bring the lights to the most recent or default light-on status
+  SetDeviceOnOff(TRUE); // Always turn light on
   
   Delay(0x1FFFF);   // about 3 sec
   
@@ -282,6 +277,59 @@ int main( void ) {
       }
     }
   }
+}
+
+void ChangeDeviceStatus() {
+  CCT2ColdWarm(DEVST_OnOff ? DEVST_Bright : 0, DEVST_WarmCold);
+  driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
+}
+
+bool SetDeviceOnOff(bool _sw) {
+  if( _sw != DEVST_OnOff ) {
+    uint8_t _Brightness = (DEVST_Bright > 0 ? DEVST_Bright : DEFAULT_BRIGHTNESS);
+    
+#ifdef GRADUAL_ONOFF    
+    // Gradually change
+    DEVST_OnOff = 1;    // On
+    for( uint8_t _loop = BRIGHTNESS_STEP; _loop <= _Brightness - BRIGHTNESS_STEP; _loop+=BRIGHTNESS_STEP ) {
+      // Gradually change
+      DEVST_Bright = (_sw ? _loop : _Brightness - _loop);
+      ChangeDeviceStatus();
+      Delay(0x2FFF);   // about 100ms
+    }
+#endif
+    
+    DEVST_OnOff = _sw;
+    DEVST_Bright = _Brightness;    
+    ChangeDeviceStatus();
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
+  return FALSE;
+}
+
+bool SetDeviceBrightness(uint8_t _br) {
+  if( _br != DEVST_Bright ) {
+    DEVST_Bright = _br;
+    DEVST_OnOff = (_br > 0);
+    ChangeDeviceStatus();
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
+  return FALSE;
+}
+
+bool SetDeviceCCT(uint16_t _cct) {
+  if( _cct != DEVST_WarmCold ) {
+    DEVST_WarmCold = _cct;
+    ChangeDeviceStatus();
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
+  return FALSE;
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {

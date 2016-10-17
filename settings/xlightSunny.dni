@@ -36,7 +36,7 @@ ActionState=1
 Enabled=0
 ShowSource=1
 [DebugChecksum]
-Checksum=775963532
+Checksum=-1168609405
 [CallStack]
 ShowArgs=0
 [Disassembly]
@@ -46,6 +46,9 @@ LogEnabled=0
 GraphEnabled=0
 ShowTimeLog=1
 ShowTimeSum=1
+[Breakpoints]
+Bp0=_ "STD_CODE" "{$PROJ_DIR$\ProtocolParser.c}.198.3" 1 0 0 0 "" 0 ""
+Count=1
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""
@@ -53,8 +56,6 @@ Category=_ 0
 [TermIOLog]
 LoggingEnabled=_ 0
 LogFile=_ ""
-[Breakpoints]
-Count=0
 [Aliases]
 Count=0
 SuppressDialog=0

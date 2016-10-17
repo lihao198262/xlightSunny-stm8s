@@ -6,5 +6,6 @@
 uint8_t ParseProtocol();
 void build(uint8_t _destination, uint8_t _sensor, uint8_t _command, uint8_t _type, bool _enableAck, bool _isAck);
 void Msg_Presentation();
+void Msg_DevStatus(uint8_t _to, uint8_t _dest);
 
 #endif /* __PROTOCOL_PARSER_H */

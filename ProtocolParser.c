@@ -42,6 +42,7 @@ uint8_t ParseProtocol(){
         gIsChanged = TRUE;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
         UpdateNodeAddress();
+        // I'm alive
         Msg_Presentation();
         return 1;
       }
@@ -56,6 +57,9 @@ uint8_t ParseProtocol(){
         gConfig.present = (gConfig.token >  0);
         gIsChanged = TRUE;
         sprintf(strOutput, "Got Presentation Ack Node:%d token:%d", gConfig.nodeID, gConfig.token);
+        // Inform controller with latest status
+        Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE);
+        return 1;
       }
     }
     break;
@@ -67,7 +71,6 @@ uint8_t ParseProtocol(){
         miSetLength(1);
         miSetPayloadType(P_BYTE);
         msg.payload.bValue = DEVST_OnOff;
-        //msg.payload.data[0] = DEVST_OnOff;
         return 1;
       } else if( _type == V_PERCENTAGE ) {
         build(_sender, _sensor, C_REQ, V_PERCENTAGE, 0, 1);
@@ -84,19 +87,7 @@ uint8_t ParseProtocol(){
         msg.payload.data[1] = DEVST_WarmCold / 256;
         return 1;
       } else if( _type == V_RGBW ) {
-        build(_sender, _sensor, C_REQ, V_RGBW, 0, 1);
-        uint8_t payload[8];
-        payload[0] = 1;		// Success
-        payload[1] = gConfig.type;
-        payload[2] = gConfig.present;
-        payload[3] = DEVST_OnOff;
-        payload[4] = DEVST_Bright;
-        payload[5] = (uint8_t)(DEVST_WarmCold / 256);
-        payload[6] = (uint8_t)(DEVST_WarmCold % 256);
-        payload[7] = 0;
-        miSetLength(8);
-        miSetPayloadType(P_CUSTOM);
-        memcpy(msg.payload.data, payload, 8);
+        Msg_DevStatus(_sender, _sensor);
         return 1;
       }
     }    
@@ -108,18 +99,12 @@ uint8_t ParseProtocol(){
           // set main lamp(ID:1) power(V_STATUS:2) on/off
           bool _OnOff = msg.payload.bValue;
           sprintf(strOutput, "Got lights:%d turn %s msg", _sensor, _OnOff ? "on" : "off");
-          if( _OnOff != DEVST_OnOff ) {
-            CCT2ColdWarm(_OnOff ? 100 : 0, DEVST_WarmCold);
-            driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
-            DEVST_OnOff = _OnOff;
-            gIsChanged = TRUE;
-          }
+          SetDeviceOnOff(_OnOff);
           if( _needAck ) {
             build(_sender, _sensor, C_SET, V_STATUS, 0, 1);
             miSetLength(1);
             miSetPayloadType(P_BYTE);
             msg.payload.bValue = DEVST_OnOff;
-            //msg.payload.data[0] = DEVST_OnOff;
             return 1;
           }
       }
@@ -128,19 +113,12 @@ uint8_t ParseProtocol(){
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness = msg.payload.bValue;
         sprintf(strOutput, "Got lights:%d dimmer %d msg", _sensor, _Brightness);
-        if( _Brightness != DEVST_Bright ) {
-          DEVST_Bright = _Brightness;
-          DEVST_OnOff = (_Brightness > 0);
-          gIsChanged = TRUE;
-          CCT2ColdWarm(DEVST_Bright, DEVST_WarmCold);
-          driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
-        }
+        SetDeviceBrightness(_Brightness);
         if( _needAck ) {
           build(_sender, _sensor, C_SET, V_PERCENTAGE, 0, 1);
           miSetLength(1);
           miSetPayloadType(P_BYTE);
           msg.payload.bValue = _Brightness;
-          //msg.payload.data[0] = _Brightness;
           return 1;
         }
       }
@@ -150,12 +128,7 @@ uint8_t ParseProtocol(){
         //uint16_t _CCTValue = (uint16_t)msg.payload.uiValue;
         uint16_t _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
         sprintf(strOutput, "Got lights:%d CCT level %d msg", _sensor, _CCTValue);
-        if( _CCTValue != DEVST_WarmCold ) {
-          DEVST_WarmCold = _CCTValue;
-          gIsChanged = TRUE;
-          CCT2ColdWarm(DEVST_Bright, DEVST_WarmCold);
-          driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
-        }
+        SetDeviceCCT(_CCTValue);
         if( _needAck ) {
           build(_sender, _sensor, C_SET, V_LEVEL, 0, 1);
           miSetLength(2);
@@ -166,6 +139,36 @@ uint8_t ParseProtocol(){
           return 1;
         }
        }
+    } else if( _type == V_RGBW ) { // RGBW
+      if( !_isAck ) {
+        // Get main lamp(ID:1) RGBW
+        bool _OnOff = msg.payload.data[0];
+        uint8_t _Brightness = msg.payload.data[1];
+        if( IS_SUNNY(gConfig.type) ) {
+          uint16_t _CCTValue = msg.payload.data[3] * 256 + msg.payload.data[2];
+          if( _OnOff != DEVST_OnOff || _Brightness != DEVST_Bright || _CCTValue != DEVST_WarmCold ) {
+            DEVST_OnOff = _OnOff;
+            DEVST_Bright = _Brightness;
+            DEVST_WarmCold = _CCTValue;
+            ChangeDeviceStatus();
+            gIsChanged = TRUE;
+          }
+          if( _needAck ) {
+            build(_sender, _sensor, C_SET, V_LEVEL, 0, 1);
+            miSetLength(4);
+            miSetPayloadType(P_CUSTOM);
+            msg.payload.data[0] = DEVST_OnOff;
+            msg.payload.data[1] = DEVST_Bright;
+            msg.payload.data[2] = DEVST_WarmCold % 256;
+            msg.payload.data[3] = DEVST_WarmCold / 256;
+            return 1;
+          }          
+        } else if( IS_RAINBOW(gConfig.type) ) {
+          // ToDo: Set RGBW
+        } else if( IS_MIRAGE(gConfig.type) ) {
+          // ToDo: set RGBW and Topology
+        }
+      }
     }
     break;
   }
@@ -173,9 +176,55 @@ uint8_t ParseProtocol(){
   return 0;
 }
 
+  // Prepare device presentation message
 void Msg_Presentation() {
   build(NODEID_GATEWAY, gConfig.type, C_PRESENTATION, S_LIGHT, 1, 0);
   miSetPayloadType(P_ULONG32);
   miSetLength(UNIQUE_ID_LEN);
   memcpy(msg.payload.data, _uniqueID, UNIQUE_ID_LEN);
+}
+
+// Prepare device status message
+void Msg_DevStatus(uint8_t _to, uint8_t _dest) {
+  build(_to, _dest, C_REQ, V_RGBW, 0, 1);
+  uint8_t payload[MAX_PAYLOAD];
+  uint8_t payl_len = 8;
+        
+  payload[0] = 1;		// Success
+  payload[1] = gConfig.type;
+  payload[2] = gConfig.present;
+  payload[3] = DEVST_OnOff;
+  payload[4] = DEVST_Bright;
+  if( IS_SUNNY(gConfig.type) ) {
+    payload[5] = (uint8_t)(DEVST_WarmCold / 256);
+    payload[6] = (uint8_t)(DEVST_WarmCold % 256);
+    payload[7] = 0;
+    payl_len = 8;
+  } else if( IS_RAINBOW(gConfig.type) ) {
+    payload[5] = (uint8_t)(DEVST_WarmCold % 256);
+    payload[6] = gConfig.ring1.R;
+    payload[7] = gConfig.ring1.G;
+    payload[8] = gConfig.ring1.B;
+    payload[9] = 0;
+    payl_len = 10;
+  } else if( IS_MIRAGE(gConfig.type) ) {
+    payload[5] = (uint8_t)(DEVST_WarmCold % 256);
+    payload[6] = gConfig.ring1.R;
+    payload[7] = gConfig.ring1.G;
+    payload[8] = gConfig.ring1.B;
+    payload[9] = gConfig.ring1.L1;
+    payload[10] = gConfig.ring1.L2;
+    payload[11] = gConfig.ring1.L3;
+    payload[12] = gConfig.ring2.L1;
+    payload[13] = gConfig.ring2.L2;
+    payload[14] = gConfig.ring2.L3;
+    payload[15] = gConfig.ring3.L1;
+    payload[16] = gConfig.ring3.L2;
+    payload[17] = gConfig.ring3.L3;
+    payload[18] = 0;
+    payl_len = MAX_PAYLOAD;
+  }
+  miSetLength(payl_len);
+  miSetPayloadType(P_CUSTOM);
+  memcpy(msg.payload.data, payload, payl_len);
 }

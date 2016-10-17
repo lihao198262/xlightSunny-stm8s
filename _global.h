@@ -39,6 +39,38 @@
 
 #define UNIQUE_ID_LEN           8
 
+// Comment off the line to disable gradual brightness on or off
+#define GRADUAL_ONOFF
+#define DEFAULT_BRIGHTNESS      100
+#define BRIGHTNESS_STEP         3
+
+// Device (lamp) type
+typedef enum
+{
+  devtypUnknown = 0,
+  devtypCRing3,     // Color ring - Rainbow
+  devtypCRing2,
+  devtypCRing1,
+  devtypWRing3,     // White ring - Sunny
+  devtypWRing2,
+  devtypWRing1,
+  devtypMRing3 = 8, // Color & Motion ring - Mirage
+  devtypMRing2,
+  devtypMRing1,
+  devtypDummy = 255
+} devicetype_t;
+
+
+// Remote type
+typedef enum
+{
+  remotetypUnknown = 0,
+  remotetypRFSimply,
+  remotetypRFStandard,
+  remotetypRFEnhanced,
+  remotetypDummy
+} remotetype_t;
+
 typedef struct
 {
   UC State                    :1;           // Component state
@@ -47,6 +79,9 @@ typedef struct
   UC R                        :8;           // Brightness of red
   UC G                        :8;           // Brightness of green
   UC B                        :8;           // Brightness of blue
+  UC L1                       :8;           // Length of thread 1
+  UC L2                       :8;           // Length of thread 2
+  UC L3                       :8;           // Length of thread 3
 } Hue_t;
 
 typedef struct
@@ -75,9 +110,17 @@ extern uint16_t pwm_Cold;
 
 void UpdateNodeAddress(void);
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);
+void ChangeDeviceStatus();
+bool SetDeviceOnOff(bool _sw);
+bool SetDeviceBrightness(uint8_t _br);
+bool SetDeviceCCT(uint16_t _cct);
 
 #define DEVST_OnOff             gConfig.ring1.State
 #define DEVST_Bright            gConfig.ring1.BR
 #define DEVST_WarmCold          gConfig.ring1.CCT
+
+#define IS_SUNNY(DevType)       ((DevType) >= devtypWRing3 || (DevType) <= devtypWRing1)
+#define IS_RAINBOW(DevType)     ((DevType) >= devtypCRing3 || (DevType) <= devtypCRing1)
+#define IS_MIRAGE(DevType)      ((DevType) >= devtypMRing3 || (DevType) <= devtypMRing1)
 
 #endif /* __GLOBAL_H */
