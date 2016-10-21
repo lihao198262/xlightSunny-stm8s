@@ -66,17 +66,8 @@ uint8_t ParseProtocol(){
   
   case C_REQ:
     if( _needAck ) {
-      if( _type == V_STATUS ) {
-        build(_sender, _sensor, C_REQ, V_STATUS, 0, 1);
-        miSetLength(1);
-        miSetPayloadType(P_BYTE);
-        msg.payload.bValue = DEVST_OnOff;
-        return 1;
-      } else if( _type == V_PERCENTAGE ) {
-        build(_sender, _sensor, C_REQ, V_PERCENTAGE, 0, 1);
-        miSetLength(1);
-        miSetPayloadType(P_BYTE);
-        msg.payload.bValue = DEVST_Bright;
+      if( _type == V_STATUS || _type == V_PERCENTAGE ) {
+        Msg_DevBrightness(_sender, _sensor);
         return 1;
       } else if( _type == V_LEVEL ) { // CCT
         build(_sender, _sensor, C_REQ, V_LEVEL, 0, 1);
@@ -101,10 +92,7 @@ uint8_t ParseProtocol(){
           sprintf(strOutput, "Got lights:%d turn %s msg", _sensor, _OnOff ? "on" : "off");
           SetDeviceOnOff(_OnOff);
           if( _needAck ) {
-            build(_sender, _sensor, C_SET, V_STATUS, 0, 1);
-            miSetLength(1);
-            miSetPayloadType(P_BYTE);
-            msg.payload.bValue = DEVST_OnOff;
+            Msg_DevBrightness(_sender, _sensor);
             return 1;
           }
       }
@@ -115,10 +103,7 @@ uint8_t ParseProtocol(){
         sprintf(strOutput, "Got lights:%d dimmer %d msg", _sensor, _Brightness);
         SetDeviceBrightness(_Brightness);
         if( _needAck ) {
-          build(_sender, _sensor, C_SET, V_PERCENTAGE, 0, 1);
-          miSetLength(1);
-          miSetPayloadType(P_BYTE);
-          msg.payload.bValue = _Brightness;
+          Msg_DevBrightness(_sender, _sensor);
           return 1;
         }
       }
@@ -150,7 +135,7 @@ uint8_t ParseProtocol(){
             DEVST_OnOff = _OnOff;
             DEVST_Bright = _Brightness;
             DEVST_WarmCold = _CCTValue;
-            ChangeDeviceStatus();
+            ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
             gIsChanged = TRUE;
           }
           if( _needAck ) {
@@ -176,12 +161,33 @@ uint8_t ParseProtocol(){
   return 0;
 }
 
-  // Prepare device presentation message
+// Prepare device presentation message
 void Msg_Presentation() {
   build(NODEID_GATEWAY, gConfig.type, C_PRESENTATION, S_LIGHT, 1, 0);
   miSetPayloadType(P_ULONG32);
   miSetLength(UNIQUE_ID_LEN);
   memcpy(msg.payload.data, _uniqueID, UNIQUE_ID_LEN);
+}
+
+// Prepare device On/Off status message
+void Msg_DevOnOff(uint8_t _to, uint8_t _dest) {
+  build(_to, _dest, C_REQ, V_STATUS, 0, 1);
+  miSetLength(1);
+  miSetPayloadType(P_BYTE);
+  msg.payload.bValue = DEVST_OnOff;
+}
+
+// Prepare device brightness message
+void Msg_DevBrightness(uint8_t _to, uint8_t _dest) {
+  uint8_t payload[MAX_PAYLOAD];
+  uint8_t payl_len = 2;
+
+  build(_to, _dest, C_REQ, V_PERCENTAGE, 0, 1);
+  miSetLength(2);
+  miSetPayloadType(P_BYTE);
+  payload[0] = DEVST_OnOff;
+  payload[1] = DEVST_Bright;
+  memcpy(msg.payload.data, payload, payl_len);
 }
 
 // Prepare device status message

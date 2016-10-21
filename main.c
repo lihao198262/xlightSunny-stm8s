@@ -50,11 +50,24 @@ bool gIsChanged = FALSE;
 uint8_t _uniqueID[UNIQUE_ID_LEN];
 
 // Moudle variables
-uint8_t mutex;
+uint8_t mutex = 0;
+uint8_t bMsgReady = 0;
 uint8_t rx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
 uint8_t tx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
+
+// Delayed operation in function idleProcess()
+typedef void (*OnTick_t)(uint16_t);  // Operation callback function typedef
+// func bits
+uint8_t delay_func = 0x00;
+bool delay_up[DELAY_TIMERS];
+uint16_t delay_from[DELAY_TIMERS];
+uint16_t delay_to[DELAY_TIMERS];
+uint16_t delay_step[DELAY_TIMERS];
+uint32_t delay_tick[DELAY_TIMERS];
+uint32_t delay_timer[DELAY_TIMERS];
+OnTick_t delay_handler[DELAY_TIMERS];
 
 void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
@@ -146,7 +159,7 @@ void Delay(uint32_t _timeout) {
 
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
-    if( mutex > 0 ) return TRUE;
+    if( idleProcess() > 0 ) return TRUE;
   }
   return FALSE;
 }
@@ -161,21 +174,16 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
     ucWarmCold = CT_MIN_VALUE;
   
   ucWarmCold -= CT_MIN_VALUE;
-  
   ucWarmCold*= 10;
-  
   ucWarmCold/=CT_SCOPE;         // 0 - 1000
   
   // Convert brightness with quadratic function 
   ucBright = ucBright * ucBright / 100;
-  
   pwm_Warm = (1000 - ucWarmCold)*ucBright/1000 ;
-
   pwm_Cold = ucWarmCold*ucBright/1000 ;
 }
 
 int main( void ) {
-  uint8_t bMsgReady = 0;
   
   //After reset, the device restarts by default with the HSI clock divided by 8.
   /* High speed internal clock prescaler: 1 */
@@ -195,9 +203,10 @@ int main( void ) {
   LoadConfig();
   
   // Bring the lights to the most recent or default light-on status
+  DEVST_OnOff = 0;      // Ensure to turn on the light at next step
   SetDeviceOnOff(TRUE); // Always turn light on
   
-  Delay(0x1FFFF);   // about 3 sec
+  WaitMutex(0x1FFFF);   // about 3 sec
   
   // Update RF addresses and Setup RF environment
   //gConfig.nodeID = 0x11; // test
@@ -249,14 +258,14 @@ int main( void ) {
     mutex = 0;
     bMsgReady = 0;
     RF24L01_set_mode_RX();
-    while(!mutex);
+    while(!idleProcess());
     if (mutex == 1) {
       RF24L01_read_payload(pMsg, PLOAD_WIDTH);
       bMsgReady = ParseProtocol();
     }
     else {
       //Something happened
-      Delay(0xFFF);
+      WaitMutex(0xFFF);
       continue;
     }
     
@@ -264,11 +273,13 @@ int main( void ) {
     SaveConfig();
     
     // Send message
-    if( bMsgReady == 1 ) {
+    while( bMsgReady == 1 ) {
       mutex = 0;
+      bMsgReady = 0;
       RF24L01_set_mode_TX();
       RF24L01_write_payload(pMsg, PLOAD_WIDTH);
 
+      // may have more messages
       WaitMutex(0x1FFFF);
       if (mutex != 1) {
         //The transmission failed, Notes: mutex == 2 doesn't mean failed
@@ -279,29 +290,79 @@ int main( void ) {
   }
 }
 
-void ChangeDeviceStatus() {
-  CCT2ColdWarm(DEVST_OnOff ? DEVST_Bright : 0, DEVST_WarmCold);
+void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct) {
+  CCT2ColdWarm(_sw ? _br : 0, _cct);
   driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
+}
+
+void ChangeDeviceBR(uint16_t _br) {
+  ChangeDeviceStatus(TRUE, (uint8_t)_br, DEVST_WarmCold);
+}
+
+void ChangeDeviceCCT(uint16_t _cct) {
+  ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, _cct);
+}
+
+void DelaySendMsg(uint16_t _msg) {
+  switch( _msg ) {
+  case 1:
+    // send current on/off status
+    Msg_DevOnOff(NODEID_GATEWAY, NODEID_MIN_REMOTE);
+    bMsgReady = 1;
+    break;
+    
+  case 2:
+    // send current brigntness status
+    Msg_DevBrightness(NODEID_GATEWAY, NODEID_MIN_REMOTE);
+    bMsgReady = 1;
+    break;
+  }
+  
+  if( bMsgReady ) Delay(0x1FF);
 }
 
 bool SetDeviceOnOff(bool _sw) {
   if( _sw != DEVST_OnOff ) {
-    uint8_t _Brightness = (DEVST_Bright > 0 ? DEVST_Bright : DEFAULT_BRIGHTNESS);
-    
-#ifdef GRADUAL_ONOFF    
-    // Gradually change
-    DEVST_OnOff = 1;    // On
-    for( uint8_t _loop = BRIGHTNESS_STEP; _loop <= _Brightness - BRIGHTNESS_STEP; _loop+=BRIGHTNESS_STEP ) {
-      // Gradually change
-      DEVST_Bright = (_sw ? _loop : _Brightness - _loop);
-      ChangeDeviceStatus();
-      Delay(0x2FFF);   // about 100ms
-    }
-#endif
-    
+    uint8_t _Brightness = (DEVST_Bright >= BR_MIN_VALUE ? DEVST_Bright : DEFAULT_BRIGHTNESS);
+
     DEVST_OnOff = _sw;
-    DEVST_Bright = _Brightness;    
-    ChangeDeviceStatus();
+    if( _Brightness != DEVST_Bright ) {
+      DEVST_Bright = _Brightness;
+
+      // Inform the controller in order to keep consistency
+      /*
+      delay_from[DELAY_TIM_MSG] = 2;    // Must be the MsgID
+      delay_to[DELAY_TIM_MSG] = 2;      // Must be the MsgID
+      delay_up[DELAY_TIM_MSG] = TRUE;
+      delay_step[DELAY_TIM_MSG] = 1;
+      delay_timer[DELAY_TIM_MSG] = 0xFF;
+      delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
+      delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
+      BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
+      */
+    }
+    
+#ifdef GRADUAL_ONOFF
+
+    // Smoothly change brightness - set parameters
+    delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : BR_MIN_VALUE);
+    delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
+    delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
+
+    // Smoothly change brightness - set timer
+    delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
+    BF_SET(delay_func, 1, DELAY_TIM_ONOFF, 1); // Enable OnOff operation
+    
+#else
+
+    // To the final status
+    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
+
+#endif    
+
     gIsChanged = TRUE;
     return TRUE;
   }
@@ -311,9 +372,41 @@ bool SetDeviceOnOff(bool _sw) {
 
 bool SetDeviceBrightness(uint8_t _br) {
   if( _br != DEVST_Bright ) {
+#ifdef GRADUAL_ONOFF    
+    // Smoothly change brightness - set parameters
+    delay_from[DELAY_TIM_BR] = DEVST_Bright;
+    delay_to[DELAY_TIM_BR] = _br;
+    delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
+    delay_step[DELAY_TIM_BR] = BRIGHTNESS_STEP;
+#endif
+    
+    bool newSW = (_br >= BR_MIN_VALUE);
     DEVST_Bright = _br;
-    DEVST_OnOff = (_br > 0);
-    ChangeDeviceStatus();
+    if( DEVST_OnOff != newSW ) {
+      DEVST_OnOff = newSW;
+      // Inform the controller in order to keep consistency
+      /*
+      delay_from[DELAY_TIM_MSG] = 1;    // Must be the MsgID
+      delay_to[DELAY_TIM_MSG] = 1;      // Must be the MsgID
+      delay_up[DELAY_TIM_MSG] = TRUE;
+      delay_step[DELAY_TIM_MSG] = 1;
+      delay_timer[DELAY_TIM_MSG] = 0xFF;
+      delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
+      delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
+      BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
+      */
+    }
+    
+#ifdef GRADUAL_ONOFF
+    // Smoothly change brightness - set timer
+    delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
+    BF_SET(delay_func, 1, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
+#else    
+    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
+#endif
+
     gIsChanged = TRUE;
     return TRUE;
   }
@@ -323,13 +416,81 @@ bool SetDeviceBrightness(uint8_t _br) {
 
 bool SetDeviceCCT(uint16_t _cct) {
   if( _cct != DEVST_WarmCold ) {
+#ifdef GRADUAL_CCT    
+    // Smoothly change CCT - set parameters
+    delay_from[DELAY_TIM_CCT] = DEVST_WarmCold;
+    delay_to[DELAY_TIM_CCT] = _cct;
+    delay_up[DELAY_TIM_CCT] = (delay_from[DELAY_TIM_CCT] < delay_to[DELAY_TIM_CCT]);
+    delay_step[DELAY_TIM_CCT] = CCT_STEP;
+#endif
+    
     DEVST_WarmCold = _cct;
-    ChangeDeviceStatus();
+    
+#ifdef GRADUAL_CCT
+    // Smoothly change CCT - set timer
+    delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
+    BF_SET(delay_func, 1, DELAY_TIM_CCT, 1); // Enable CCT Dimmer operation
+#else    
+    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
+#endif
+    
     gIsChanged = TRUE;
     return TRUE;
   }
   
   return FALSE;
+}
+
+bool isTimerCompleted(uint8_t _tmr) {
+  bool bFinished;
+  
+  if( delay_up[_tmr] ) {
+    // Up
+    delay_from[_tmr] += delay_step[_tmr];
+    bFinished = ( delay_from[_tmr] >= delay_to[_tmr] );
+  } else {
+    // Down
+    delay_from[_tmr] -= delay_step[_tmr];
+    bFinished = ( delay_from[_tmr] <= delay_to[_tmr] );
+  }
+  
+  // Execute operation
+  if( delay_handler[_tmr] ) {
+    if( bFinished ) {
+      // Completed - to the final status
+      (*delay_handler[_tmr])(delay_to[_tmr]);
+    } else {
+      // Progress
+      (*delay_handler[_tmr])(delay_from[_tmr]);
+    }
+  }
+  
+  return bFinished;
+}
+
+// Execute delayed operations
+uint8_t idleProcess() {
+  for( uint8_t _tmr = 0; _tmr < DELAY_TIMERS; _tmr++ ) {
+    if( BF_GET(delay_func, _tmr, 1) ) {
+      // Timer is enabled
+      if( delay_tick[_tmr] == 0 ) {
+        // Timer reached, reset it
+        delay_tick[_tmr] = delay_timer[_tmr];
+        // Move a step and execute operation
+        if( isTimerCompleted(_tmr) ) {
+          // Stop timer - disable further operation
+          BF_SET(delay_func, 0, _tmr, 1);
+        }
+      } else {
+        // Timer not reached, tick it
+        delay_tick[_tmr]--;
+      }
+    }
+  }
+  
+  return mutex; 
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {

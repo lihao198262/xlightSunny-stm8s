@@ -32,6 +32,7 @@
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
 
+#define BR_MIN_VALUE            5
 #define CT_MIN_VALUE            2700
 #define CT_MAX_VALUE            6500
 #define CT_SCOPE                38    
@@ -39,10 +40,20 @@
 
 #define UNIQUE_ID_LEN           8
 
+// Delayed operation timers
+#define DELAY_TIMERS            8
+#define DELAY_TIM_ONOFF         0
+#define DELAY_TIM_BR            1
+#define DELAY_TIM_CCT           2
+#define DELAY_TIM_RGB           3
+#define DELAY_TIM_MSG           7
+
 // Comment off the line to disable gradual brightness on or off
 #define GRADUAL_ONOFF
-#define DEFAULT_BRIGHTNESS      100
-#define BRIGHTNESS_STEP         3
+#define GRADUAL_CCT
+#define DEFAULT_BRIGHTNESS      65
+#define BRIGHTNESS_STEP         1
+#define CCT_STEP                50
 
 // Device (lamp) type
 typedef enum
@@ -110,10 +121,11 @@ extern uint16_t pwm_Cold;
 
 void UpdateNodeAddress(void);
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);
-void ChangeDeviceStatus();
+void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct);
 bool SetDeviceOnOff(bool _sw);
 bool SetDeviceBrightness(uint8_t _br);
 bool SetDeviceCCT(uint16_t _cct);
+uint8_t idleProcess();
 
 #define DEVST_OnOff             gConfig.ring1.State
 #define DEVST_Bright            gConfig.ring1.BR

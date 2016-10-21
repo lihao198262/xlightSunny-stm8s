@@ -1,3 +1,19 @@
+[Stack]
+FillEnabled=0
+OverflowWarningsEnabled=1
+WarningThreshold=90
+SpWarningsEnabled=1
+WarnLogOnly=1
+UseTrigger=1
+TriggerName=main
+LimitSize=0
+ByteLimit=50
+[DebugChecksum]
+Checksum=1709569471
+[CallStack]
+ShowArgs=0
+[Disassembly]
+MixedMode=1
 [InterruptLog]
 LogEnabled=0
 SumEnabled=0
@@ -11,16 +27,6 @@ SumEnabled=0
 GraphEnabled=0
 ShowTimeLog=1
 ShowTimeSum=1
-[Stack]
-FillEnabled=0
-OverflowWarningsEnabled=1
-WarningThreshold=90
-SpWarningsEnabled=1
-WarnLogOnly=1
-UseTrigger=1
-TriggerName=main
-LimitSize=0
-ByteLimit=50
 [Breakpoints2]
 Count=0
 [Interrupts]
@@ -35,20 +41,13 @@ ActionState=1
 [Trace1]
 Enabled=0
 ShowSource=1
-[DebugChecksum]
-Checksum=-1168609405
-[CallStack]
-ShowArgs=0
-[Disassembly]
-MixedMode=1
 [DataSample]
 LogEnabled=0
 GraphEnabled=0
 ShowTimeLog=1
 ShowTimeSum=1
 [Breakpoints]
-Bp0=_ "STD_CODE" "{$PROJ_DIR$\ProtocolParser.c}.198.3" 1 0 0 0 "" 0 ""
-Count=1
+Count=0
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""
@@ -59,3 +58,5 @@ LogFile=_ ""
 [Aliases]
 Count=0
 SuppressDialog=0
+[DebuggerSettings]
+DisableInterruptsWhenStepping=0

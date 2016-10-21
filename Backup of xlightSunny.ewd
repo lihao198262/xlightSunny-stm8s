@@ -124,9 +124,9 @@
     </settings>
     <settings>
       <name>STICE_STM8</name>
-      <archiveVersion>3</archiveVersion>
+      <archiveVersion>1</archiveVersion>
       <data>
-        <version>2</version>
+        <version>0</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -153,25 +153,13 @@
           <name>STiceUseSwim</name>
           <state>0</state>
         </option>
-        <option>
-          <name>STiceOptionBytesSetupFileOver</name>
-          <state>0</state>
-        </option>
-        <option>
-          <name>STiceOptionBytesSetupFile</name>
-          <state></state>
-        </option>
-        <option>
-          <name>STiceEraseMemory</name>
-          <state>0</state>
-        </option>
       </data>
     </settings>
     <settings>
       <name>STLINK_STM8</name>
-      <archiveVersion>3</archiveVersion>
+      <archiveVersion>1</archiveVersion>
       <data>
-        <version>2</version>
+        <version>0</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>1</debug>
         <option>
@@ -193,18 +181,6 @@
         <option>
           <name>STlinkLogFile</name>
           <state>$PROJ_DIR$\cspycomm.log</state>
-        </option>
-        <option>
-          <name>STlinkOptionBytesSetupFileOver</name>
-          <state>0</state>
-        </option>
-        <option>
-          <name>STlinkOptionBytesSetupFile</name>
-          <state></state>
-        </option>
-        <option>
-          <name>STlinkEraseMemory</name>
-          <state>0</state>
         </option>
       </data>
     </settings>
@@ -353,9 +329,9 @@
     </settings>
     <settings>
       <name>STICE_STM8</name>
-      <archiveVersion>3</archiveVersion>
+      <archiveVersion>1</archiveVersion>
       <data>
-        <version>2</version>
+        <version>0</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -382,25 +358,13 @@
           <name>STiceUseSwim</name>
           <state>0</state>
         </option>
-        <option>
-          <name>STiceOptionBytesSetupFileOver</name>
-          <state>0</state>
-        </option>
-        <option>
-          <name>STiceOptionBytesSetupFile</name>
-          <state></state>
-        </option>
-        <option>
-          <name>STiceEraseMemory</name>
-          <state>0</state>
-        </option>
       </data>
     </settings>
     <settings>
       <name>STLINK_STM8</name>
-      <archiveVersion>3</archiveVersion>
+      <archiveVersion>1</archiveVersion>
       <data>
-        <version>2</version>
+        <version>0</version>
         <wantNonLocal>1</wantNonLocal>
         <debug>0</debug>
         <option>
@@ -422,18 +386,6 @@
         <option>
           <name>STlinkLogFile</name>
           <state>$PROJ_DIR$\cspycomm.log</state>
-        </option>
-        <option>
-          <name>STlinkOptionBytesSetupFileOver</name>
-          <state>0</state>
-        </option>
-        <option>
-          <name>STlinkOptionBytesSetupFile</name>
-          <state></state>
-        </option>
-        <option>
-          <name>STlinkEraseMemory</name>
-          <state>0</state>
         </option>
       </data>
     </settings>
