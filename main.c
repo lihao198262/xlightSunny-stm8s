@@ -7,6 +7,11 @@
 /*
 License: MIT
 
+Auther: Baoshi Sun
+Email: bs.sun@datatellit.com, bs.sun@uwaterloo.ca
+Github: https://github.com/sunbaoshi1975
+Please visit xlight.ca for product details
+
 RF24L01 connector pinout:
 GND    VCC
 CE     CSN
@@ -177,8 +182,19 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   ucWarmCold*= 10;
   ucWarmCold/=CT_SCOPE;         // 0 - 1000
   
-  // Convert brightness with quadratic function 
-  ucBright = ucBright * ucBright / 100;
+  // Convert brightness with quadratic function
+  // Func 1
+  // y = (100 - b) * x * sqrt(x) / 1000 + b
+  // , where b = LIGHT_PWM_THRESHOLD
+  // Func 2
+  // y = (100 - b) * x * x / 10000 + b
+  // , where b = LIGHT_PWM_THRESHOLD
+  if( ucBright > 0 ) {
+    //float rootBright = sqrt(ucBright);
+    //ucBright = (uint32_t)((100 - LIGHT_PWM_THRESHOLD) * ucBright * rootBright / 1000 + LIGHT_PWM_THRESHOLD + 0.5);
+    ucBright = (100 - LIGHT_PWM_THRESHOLD) * ucBright * ucBright / 10000 + LIGHT_PWM_THRESHOLD + 0.5;
+  }
+  
   pwm_Warm = (1000 - ucWarmCold)*ucBright/1000 ;
   pwm_Cold = ucWarmCold*ucBright/1000 ;
 }
@@ -224,7 +240,7 @@ int main( void ) {
   EXTI_SetExtIntSensitivity(EXTI_PORT_GPIOC, EXTI_SENSITIVITY_FALL_ONLY);
   enableInterrupts();
 
-  if( (gConfig.nodeID < NODEID_MIN_DEVCIE || gConfig.nodeID > NODEID_MAX_DEVCIE) && gConfig.nodeID != NODEID_MAINDEVICE ) {
+  if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
     // Request for NodeID
     build(BASESERVICE_ADDRESS, NODE_TYP_LAMP, C_INTERNAL, I_ID_REQUEST, 1, 0);
     miSetPayloadType(P_ULONG32);
@@ -290,15 +306,18 @@ int main( void ) {
   }
 }
 
+// Immediately change brightness and cct
 void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct) {
   CCT2ColdWarm(_sw ? _br : 0, _cct);
   driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
 }
 
+// Immediately change brightness
 void ChangeDeviceBR(uint16_t _br) {
   ChangeDeviceStatus(TRUE, (uint8_t)_br, DEVST_WarmCold);
 }
 
+// Immediately change cct
 void ChangeDeviceCCT(uint16_t _cct) {
   ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, _cct);
 }
@@ -321,6 +340,7 @@ void DelaySendMsg(uint16_t _msg) {
   if( bMsgReady ) Delay(0x1FF);
 }
 
+// Gradually turn on or off
 bool SetDeviceOnOff(bool _sw) {
   if( _sw != DEVST_OnOff ) {
     uint8_t _Brightness = (DEVST_Bright >= BR_MIN_VALUE ? DEVST_Bright : DEFAULT_BRIGHTNESS);
@@ -346,7 +366,7 @@ bool SetDeviceOnOff(bool _sw) {
 
     // Smoothly change brightness - set parameters
     delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
-    delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : BR_MIN_VALUE);
+    delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
     delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
 
@@ -370,6 +390,7 @@ bool SetDeviceOnOff(bool _sw) {
   return FALSE;
 }
 
+// Gradually change brightness
 bool SetDeviceBrightness(uint8_t _br) {
   if( _br != DEVST_Bright ) {
 #ifdef GRADUAL_ONOFF    
@@ -414,6 +435,7 @@ bool SetDeviceBrightness(uint8_t _br) {
   return FALSE;
 }
 
+// Gradually change cct
 bool SetDeviceCCT(uint16_t _cct) {
   if( _cct != DEVST_WarmCold ) {
 #ifdef GRADUAL_CCT    
@@ -441,6 +463,24 @@ bool SetDeviceCCT(uint16_t _cct) {
   }
   
   return FALSE;
+}
+
+// Gradually change on/off, brightness and cct in one
+bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct) {
+  if( _sw != DEVST_OnOff ) {
+    DEVST_Bright = _br;
+    DEVST_WarmCold = _cct;
+    SetDeviceOnOff(_sw);
+    return TRUE;
+  }
+
+  if( _br != DEVST_Bright ) {
+    DEVST_WarmCold = _cct;
+    SetDeviceBrightness(_br);
+    return TRUE;    
+  }
+  
+  return SetDeviceCCT(_cct);
 }
 
 bool isTimerCompleted(uint8_t _tmr) {

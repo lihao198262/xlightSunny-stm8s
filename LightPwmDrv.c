@@ -104,6 +104,7 @@ void regulateWarmLightPulseWidth (unsigned char ucPercent)
   //uint16_t pulseWidth;
   if (ucPercent >= 100)
     ucPercent = 100;
+  
   //pulseWidth = ucPercent * 2;
   //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / pulseWidth;
   

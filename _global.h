@@ -32,11 +32,12 @@
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
 
-#define BR_MIN_VALUE            5
+#define BR_MIN_VALUE            1
 #define CT_MIN_VALUE            2700
 #define CT_MAX_VALUE            6500
 #define CT_SCOPE                38    
 #define CT_STEP                 ((CT_MAX_VALUE-CT_MIN_VALUE)/10)
+#define LIGHT_PWM_THRESHOLD     5
 
 #define UNIQUE_ID_LEN           8
 
@@ -125,14 +126,19 @@ void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct);
 bool SetDeviceOnOff(bool _sw);
 bool SetDeviceBrightness(uint8_t _br);
 bool SetDeviceCCT(uint16_t _cct);
+bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct);
 uint8_t idleProcess();
 
 #define DEVST_OnOff             gConfig.ring1.State
 #define DEVST_Bright            gConfig.ring1.BR
 #define DEVST_WarmCold          gConfig.ring1.CCT
 
-#define IS_SUNNY(DevType)       ((DevType) >= devtypWRing3 || (DevType) <= devtypWRing1)
-#define IS_RAINBOW(DevType)     ((DevType) >= devtypCRing3 || (DevType) <= devtypCRing1)
-#define IS_MIRAGE(DevType)      ((DevType) >= devtypMRing3 || (DevType) <= devtypMRing1)
+#define IS_SUNNY(DevType)           ((DevType) >= devtypWRing3 && (DevType) <= devtypWRing1)
+#define IS_RAINBOW(DevType)         ((DevType) >= devtypCRing3 && (DevType) <= devtypCRing1)
+#define IS_MIRAGE(DevType)          ((DevType) >= devtypMRing3 && (DevType) <= devtypMRing1)
+#define IS_VALID_REMOTE(DevType)    ((DevType) >= remotetypRFSimply && (DevType) <= remotetypRFEnhanced)
+
+#define IS_NOT_DEVICE_NODEID(nID)  ((nID < NODEID_MIN_DEVCIE || nID > NODEID_MAX_DEVCIE) && nID != NODEID_MAINDEVICE)
+#define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 
 #endif /* __GLOBAL_H */
