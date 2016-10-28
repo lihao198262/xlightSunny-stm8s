@@ -155,7 +155,7 @@ void UpdateNodeAddress(void) {
   rx_addr[0] = gConfig.nodeID;
   memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
   tx_addr[0] = (gConfig.nodeID >= BASESERVICE_ADDRESS ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
-  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL);
+  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, 0);     // Without openning the boardcast pipe
 }
 
 void Delay(uint32_t _timeout) {

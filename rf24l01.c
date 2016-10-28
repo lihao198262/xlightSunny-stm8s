@@ -97,7 +97,7 @@ void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t lengt
   CSN_HIGH;
 }
 
-void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel) {
+void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t boardcast) {
   CE_LOW; //CE -> Low
 
   RF24L01_reg_SETUP_AW_content SETUP_AW;
@@ -107,15 +107,25 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel) {
   
   RF24L01_write_register(RF24L01_reg_RX_ADDR_P0, rx_addr, 5);
   RF24L01_write_register(RF24L01_reg_TX_ADDR, tx_addr, 5);
+  
+  // Set boardcast address
+  if( boardcast > 0 ) {
+    uint8_t bc_addr[5];
+    memcpy(bc_addr, rx_addr, 5);
+    bc_addr[0] = boardcast;
+    RF24L01_write_register(RF24L01_reg_RX_ADDR_P1, bc_addr, 5);
+  }
 
   RF24L01_reg_EN_AA_content EN_AA;
   *((uint8_t *)&EN_AA) = 0;
   EN_AA.ENAA_P0 = 1;
+  if( boardcast > 0 ) { EN_AA.ENAA_P1 = 1; }
   RF24L01_write_register(RF24L01_reg_EN_AA, ((uint8_t *)&EN_AA), 1);
   
   RF24L01_reg_EN_RXADDR_content RX_ADDR;
   *((uint8_t *)&RX_ADDR) = 0;
   RX_ADDR.ERX_P0 = 1;
+  if( boardcast > 0 ) { RX_ADDR.ERX_P1 = 1; }
   RF24L01_write_register(RF24L01_reg_EN_RXADDR, ((uint8_t *)&RX_ADDR), 1);
 
   RF24L01_reg_RF_CH_content RF_CH;
@@ -127,6 +137,13 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel) {
   *((uint8_t *)&RX_PW_P0) = 0;
   RX_PW_P0.RX_PW_P0 = 0x20;
   RF24L01_write_register(RF24L01_reg_RX_PW_P0, ((uint8_t *)&RX_PW_P0), 1);  
+
+  if( boardcast > 0 ) {
+    RF24L01_reg_RX_PW_P1_content RX_PW_P1;
+    *((uint8_t *)&RX_PW_P1) = 0;
+    RX_PW_P1.RX_PW_P1 = 0x20;
+    RF24L01_write_register(RF24L01_reg_RX_PW_P1, ((uint8_t *)&RX_PW_P1), 1);
+  }
 
   RF24L01_reg_RF_SETUP_content RF_SETUP;
   *((uint8_t *)&RF_SETUP) = 0;
