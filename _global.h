@@ -57,6 +57,7 @@
 #define CCT_STEP                50
 
 // Device (lamp) type
+#define MAX_RING_NUM            3
 typedef enum
 {
   devtypUnknown = 0,
@@ -105,9 +106,7 @@ typedef struct
   UC reserved                 :7;
   UC type;                                  // Type of lamp
   US token;
-  Hue_t ring1;
-  Hue_t ring2;
-  Hue_t ring3;
+  Hue_t ring[MAX_RING_NUM];
   char Organization[24];                    // Organization name
   char ProductName[24];                     // Product name
   UC rfPowerLevel             :2;           // RF Power Level 0..3
@@ -129,9 +128,31 @@ bool SetDeviceCCT(uint16_t _cct);
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct);
 uint8_t idleProcess();
 
-#define DEVST_OnOff             gConfig.ring1.State
-#define DEVST_Bright            gConfig.ring1.BR
-#define DEVST_WarmCold          gConfig.ring1.CCT
+// All rings or the first ring
+#define DEVST_OnOff             gConfig.ring[0].State
+#define DEVST_Bright            gConfig.ring[0].BR
+#define DEVST_WarmCold          gConfig.ring[0].CCT
+#define DEVST_W                 (gConfig.ring[0].CCT % 256)
+#define DEVST_R                 gConfig.ring[0].R
+#define DEVST_G                 gConfig.ring[0].G
+#define DEVST_B                 gConfig.ring[0].B
+
+#define RING_ID_ALL             0
+#define RING_ID_1               1
+#define RING_ID_2               2
+#define RING_ID_3               3
+
+// Specific ring
+#define RINGST_OnOff(rid)       gConfig.ring[(rid)].State
+#define RINGST_Bright(rid)      gConfig.ring[(rid)].BR
+#define RINGST_WarmCold(rid)    gConfig.ring[(rid)].CCT
+#define RINGST_W(rid)           (gConfig.ring[(rid)].CCT % 256)
+#define RINGST_R(rid)           gConfig.ring[(rid)].R
+#define RINGST_G(rid)           gConfig.ring[(rid)].G
+#define RINGST_B(rid)           gConfig.ring[(rid)].B
+#define RINGST_L1(rid)          gConfig.ring[(rid)].L1
+#define RINGST_L2(rid)          gConfig.ring[(rid)].L2
+#define RINGST_L3(rid)          gConfig.ring[(rid)].L3
 
 #define IS_SUNNY(DevType)           ((DevType) >= devtypWRing3 && (DevType) <= devtypWRing1)
 #define IS_RAINBOW(DevType)         ((DevType) >= devtypCRing3 && (DevType) <= devtypCRing1)

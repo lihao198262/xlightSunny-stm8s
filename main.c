@@ -126,21 +126,21 @@ void LoadConfig()
 {
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-    if( gConfig.version > XLA_VERSION || gConfig.ring1.BR > 100 || gConfig.ring1.CCT < CT_MIN_VALUE 
-       || gConfig.ring1.CCT > CT_MAX_VALUE || gConfig.rfPowerLevel > RF24_PA_MAX ) {
+    if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || DEVST_WarmCold< CT_MIN_VALUE 
+       || DEVST_WarmCold > CT_MAX_VALUE || gConfig.rfPowerLevel > RF24_PA_MAX ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       gConfig.nodeID = BASESERVICE_ADDRESS;  // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
       gConfig.present = 0;
       gConfig.type = devtypWRing3;
-      gConfig.ring1.State = 1;
-      gConfig.ring1.BR = DEFAULT_BRIGHTNESS;
-      gConfig.ring1.CCT = CT_MIN_VALUE;
-      gConfig.ring1.R = 0;
-      gConfig.ring1.G = 0;
-      gConfig.ring1.B = 0;
-      gConfig.ring2 = gConfig.ring1;
-      gConfig.ring3 = gConfig.ring1;
+      gConfig.ring[0].State = 1;
+      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+      gConfig.ring[0].CCT = CT_MIN_VALUE;
+      gConfig.ring[0].R = 0;
+      gConfig.ring[0].G = 0;
+      gConfig.ring[0].B = 0;
+      gConfig.ring[1] = gConfig.ring[0];
+      gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
       memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
       sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);

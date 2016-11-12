@@ -58,7 +58,7 @@ uint8_t ParseProtocol(){
         gIsChanged = TRUE;
         sprintf(strOutput, "Got Presentation Ack Node:%d token:%d", gConfig.nodeID, gConfig.token);
         // Inform controller with latest status
-        Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE);
+        Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE, RING_ID_ALL);
         return 1;
       }
     }
@@ -72,8 +72,13 @@ uint8_t ParseProtocol(){
       } else if( _type == V_LEVEL ) { // CCT
         Msg_DevBrightness(_sender, _sensor);
         return 1;
-      } else if( _type == V_RGBW ) {
-        Msg_DevStatus(_sender, _sensor);
+      } else if( _type == V_RGBW ) { // Hue
+        uint8_t _RingID = msg.payload.data[0];
+        Msg_DevStatus(_sender, _sensor, _RingID);
+        return 1;
+      } else if( _type == V_DISTANCE ) { // Topology
+        uint8_t _RingID = msg.payload.data[0];
+        Msg_DevTopology(_sender, _sensor, _RingID);
         return 1;
       }
     }    
@@ -117,21 +122,32 @@ uint8_t ParseProtocol(){
     } else if( _type == V_RGBW ) { // RGBW
       if( !_isAck ) {
         // Get main lamp(ID:1) RGBW
-        bool _OnOff = msg.payload.data[0];
-        uint8_t _Brightness = msg.payload.data[1];
+        uint8_t _RingID = msg.payload.data[0];
+        bool _OnOff = msg.payload.data[1];
+        uint8_t _Brightness = msg.payload.data[2];
         if( IS_SUNNY(gConfig.type) ) {
-          uint16_t _CCTValue = msg.payload.data[3] * 256 + msg.payload.data[2];
+          uint16_t _CCTValue = msg.payload.data[4] * 256 + msg.payload.data[3];
           if( _OnOff != DEVST_OnOff || _Brightness != DEVST_Bright || _CCTValue != DEVST_WarmCold ) {
             SetDeviceStatus(_OnOff, _Brightness, _CCTValue);
             gIsChanged = TRUE;
           }
-        } else if( IS_RAINBOW(gConfig.type) ) {
+        } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
           // ToDo: Set RGBW
-        } else if( IS_MIRAGE(gConfig.type) ) {
-          // ToDo: set RGBW and Topology
         }
         if( _needAck ) {
-          Msg_DevStatus(_sender, _sensor);
+          Msg_DevStatus(_sender, _sensor, _RingID);
+          return 1;
+        }          
+      }
+    } else if( _type == V_DISTANCE ) { // Topology
+      if( !_isAck ) {
+        // Get main lamp(ID:1) Length of threads
+        uint8_t _RingID = msg.payload.data[0];
+        if( IS_MIRAGE(gConfig.type) ) {
+          // ToDo: set Topology
+        }
+        if( _needAck ) {
+          Msg_DevTopology(_sender, _sensor, _RingID);
           return 1;
         }          
       }
@@ -181,44 +197,96 @@ void Msg_DevCCT(uint8_t _to, uint8_t _dest) {
 }
 
 // Prepare device status message
-void Msg_DevStatus(uint8_t _to, uint8_t _dest) {
-  uint8_t payl_len;
-
+void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
+  uint8_t payl_len, r_index;
+  
+  if( _ring > MAX_RING_NUM ) _ring = RING_ID_ALL;
+  
   build(_to, _dest, C_REQ, V_RGBW, 0, 1);
   msg.payload.data[0] = 1;		// Success
   msg.payload.data[1] = gConfig.type;
   msg.payload.data[2] = gConfig.present;
-  msg.payload.data[3] = DEVST_OnOff;
-  msg.payload.data[4] = DEVST_Bright;
-  if( IS_SUNNY(gConfig.type) ) {
-    msg.payload.data[5] = (uint8_t)(DEVST_WarmCold % 256);
-    msg.payload.data[6] = (uint8_t)(DEVST_WarmCold / 256);
-    msg.payload.data[7] = 0;
-    payl_len = 8;
-  } else if( IS_RAINBOW(gConfig.type) ) {
-    msg.payload.data[5] = (uint8_t)(DEVST_WarmCold % 256);
-    msg.payload.data[6] = gConfig.ring1.R;
-    msg.payload.data[7] = gConfig.ring1.G;
-    msg.payload.data[8] = gConfig.ring1.B;
-    msg.payload.data[9] = 0;
-    payl_len = 10;
-  } else if( IS_MIRAGE(gConfig.type) ) {
-    msg.payload.data[5] = (uint8_t)(DEVST_WarmCold % 256);
-    msg.payload.data[6] = gConfig.ring1.R;
-    msg.payload.data[7] = gConfig.ring1.G;
-    msg.payload.data[8] = gConfig.ring1.B;
-    msg.payload.data[9] = gConfig.ring1.L1;
-    msg.payload.data[10] = gConfig.ring1.L2;
-    msg.payload.data[11] = gConfig.ring1.L3;
-    msg.payload.data[12] = gConfig.ring2.L1;
-    msg.payload.data[13] = gConfig.ring2.L2;
-    msg.payload.data[14] = gConfig.ring2.L3;
-    msg.payload.data[15] = gConfig.ring3.L1;
-    msg.payload.data[16] = gConfig.ring3.L2;
-    msg.payload.data[17] = gConfig.ring3.L3;
-    msg.payload.data[18] = 0;
+  payl_len = 3;
+  
+  for( r_index = 0; r_index < MAX_RING_NUM; r_index++ ) {
+    // Specific ring or all rings?
+    if( _ring != RING_ID_ALL ) {
+        // Only once
+        msg.payload.data[payl_len++] = _ring;   // 1, 2 or 3
+        r_index = _ring - 1;
+    } else {
+      // Send one ring at a time
+      msg.payload.data[payl_len++] = r_index + 1;
+    }
+    
+    msg.payload.data[payl_len++] = RINGST_OnOff(r_index);
+    msg.payload.data[payl_len++] = RINGST_Bright(r_index);
+    if( IS_SUNNY(gConfig.type) ) {
+      msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) % 256);
+      msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) / 256);
+    } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
+      msg.payload.data[payl_len++] = RINGST_W(r_index);
+      msg.payload.data[payl_len++] = RINGST_R(r_index);
+      msg.payload.data[payl_len++] = RINGST_G(r_index);
+      msg.payload.data[payl_len++] = RINGST_B(r_index);
+    }
+    
+    // Specific ring or all rings?
+    if( _ring != RING_ID_ALL ) {
+      break;
+    }    
+  }
+  
+  if( payl_len > MAX_PAYLOAD ) {
+    // Should break the message into chunks
     payl_len = MAX_PAYLOAD;
   }
+  
+  miSetLength(payl_len);
+  miSetPayloadType(P_CUSTOM);
+}
+
+// Prepare topology message
+void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
+  uint8_t payl_len, r_index;
+  
+  if( _ring > MAX_RING_NUM ) _ring = RING_ID_ALL;
+  
+  build(_to, _dest, C_REQ, V_DISTANCE, 0, 1);
+
+  msg.payload.data[0] = IS_MIRAGE(gConfig.type);        // Success
+  msg.payload.data[1] = gConfig.type;
+  msg.payload.data[2] = gConfig.present;
+  payl_len = 3;
+  
+  if( msg.payload.data[0] ) {
+    for( r_index = 0; r_index < MAX_RING_NUM; r_index++ ) {
+      // Specific ring or all rings?
+      if( _ring != RING_ID_ALL ) {
+        // Only once
+        msg.payload.data[payl_len++] = _ring;   // 1, 2 or 3
+        r_index = _ring - 1;
+      } else {
+        // Send one ring at a time
+        msg.payload.data[payl_len++] = r_index + 1;
+      }
+      
+      msg.payload.data[payl_len++] = RINGST_L1(r_index);
+      msg.payload.data[payl_len++] = RINGST_L2(r_index);
+      msg.payload.data[payl_len++] = RINGST_L3(r_index);
+      
+      // Specific ring or all rings?
+      if( _ring != RING_ID_ALL ) {
+        break;
+      }    
+    }
+  }
+    
+  if( payl_len > MAX_PAYLOAD ) {
+    // Should break the message into chunks
+    payl_len = MAX_PAYLOAD;
+  }
+  
   miSetLength(payl_len);
   miSetPayloadType(P_CUSTOM);
 }
