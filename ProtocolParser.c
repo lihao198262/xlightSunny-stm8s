@@ -90,7 +90,7 @@ uint8_t ParseProtocol(){
         // set main lamp(ID:1) power(V_STATUS:2) on/off
         bool _OnOff = msg.payload.bValue;
         sprintf(strOutput, "Got lights:%d turn %s msg", _sensor, _OnOff ? "on" : "off");
-        SetDeviceOnOff(_OnOff);
+        SetDeviceOnOff(_OnOff, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevBrightness(_sender, _sensor);
           return 1;
@@ -101,7 +101,7 @@ uint8_t ParseProtocol(){
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness = msg.payload.bValue;
         sprintf(strOutput, "Got lights:%d dimmer %d msg", _sensor, _Brightness);
-        SetDeviceBrightness(_Brightness);
+        SetDeviceBrightness(_Brightness, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevBrightness(_sender, _sensor);
           return 1;
@@ -113,7 +113,7 @@ uint8_t ParseProtocol(){
         //uint16_t _CCTValue = (uint16_t)msg.payload.uiValue;
         uint16_t _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
         sprintf(strOutput, "Got lights:%d CCT level %d msg", _sensor, _CCTValue);
-        SetDeviceCCT(_CCTValue);
+        SetDeviceCCT(_CCTValue, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevCCT(_sender, _sensor);
           return 1;
@@ -123,12 +123,15 @@ uint8_t ParseProtocol(){
       if( !_isAck ) {
         // Get main lamp(ID:1) RGBW
         uint8_t _RingID = msg.payload.data[0];
+        if( _RingID > MAX_RING_NUM ) _RingID = RING_ID_ALL;
+        uint8_t r_index = (_RingID == RING_ID_ALL ? 0 : _RingID - 1);
+        
         bool _OnOff = msg.payload.data[1];
         uint8_t _Brightness = msg.payload.data[2];
         if( IS_SUNNY(gConfig.type) ) {
           uint16_t _CCTValue = msg.payload.data[4] * 256 + msg.payload.data[3];
-          if( _OnOff != DEVST_OnOff || _Brightness != DEVST_Bright || _CCTValue != DEVST_WarmCold ) {
-            SetDeviceStatus(_OnOff, _Brightness, _CCTValue);
+          if( _OnOff != RINGST_OnOff(r_index) || _Brightness != RINGST_Bright(r_index) || _CCTValue != RINGST_WarmCold(r_index) ) {
+            SetDeviceStatus(_OnOff, _Brightness, _CCTValue, _RingID);
             gIsChanged = TRUE;
           }
         } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
@@ -209,6 +212,8 @@ void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   payl_len = 3;
   
   for( r_index = 0; r_index < MAX_RING_NUM; r_index++ ) {
+
+#ifdef RING_INDIVIDUAL_COLOR
     // Specific ring or all rings?
     if( _ring != RING_ID_ALL ) {
         // Only once
@@ -218,6 +223,10 @@ void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
       // Send one ring at a time
       msg.payload.data[payl_len++] = r_index + 1;
     }
+#else
+    _ring = 1;      // Use the first ring presenting all rings
+    msg.payload.data[payl_len++] = RING_ID_ALL;
+#endif
     
     msg.payload.data[payl_len++] = RINGST_OnOff(r_index);
     msg.payload.data[payl_len++] = RINGST_Bright(r_index);
@@ -225,7 +234,7 @@ void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
       msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) % 256);
       msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) / 256);
     } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
-      msg.payload.data[payl_len++] = RINGST_W(r_index);
+      msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) % 256);
       msg.payload.data[payl_len++] = RINGST_R(r_index);
       msg.payload.data[payl_len++] = RINGST_G(r_index);
       msg.payload.data[payl_len++] = RINGST_B(r_index);

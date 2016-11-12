@@ -56,6 +56,10 @@
 #define BRIGHTNESS_STEP         1
 #define CCT_STEP                50
 
+// Whether allow individual color control of ring
+/// Uncomment this line only if hardware supports
+//#define RING_INDIVIDUAL_COLOR
+
 // Device (lamp) type
 #define MAX_RING_NUM            3
 typedef enum
@@ -121,18 +125,17 @@ extern uint16_t pwm_Cold;
 
 void UpdateNodeAddress(void);
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);
-void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct);
-bool SetDeviceOnOff(bool _sw);
-bool SetDeviceBrightness(uint8_t _br);
-bool SetDeviceCCT(uint16_t _cct);
-bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct);
+void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
+bool SetDeviceOnOff(bool _sw, uint8_t _ring);
+bool SetDeviceBrightness(uint8_t _br, uint8_t _ring);
+bool SetDeviceCCT(uint16_t _cct, uint8_t _ring);
+bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 uint8_t idleProcess();
 
 // All rings or the first ring
 #define DEVST_OnOff             gConfig.ring[0].State
 #define DEVST_Bright            gConfig.ring[0].BR
 #define DEVST_WarmCold          gConfig.ring[0].CCT
-#define DEVST_W                 (gConfig.ring[0].CCT % 256)
 #define DEVST_R                 gConfig.ring[0].R
 #define DEVST_G                 gConfig.ring[0].G
 #define DEVST_B                 gConfig.ring[0].B
@@ -146,7 +149,6 @@ uint8_t idleProcess();
 #define RINGST_OnOff(rid)       gConfig.ring[(rid)].State
 #define RINGST_Bright(rid)      gConfig.ring[(rid)].BR
 #define RINGST_WarmCold(rid)    gConfig.ring[(rid)].CCT
-#define RINGST_W(rid)           (gConfig.ring[(rid)].CCT % 256)
 #define RINGST_R(rid)           gConfig.ring[(rid)].R
 #define RINGST_G(rid)           gConfig.ring[(rid)].G
 #define RINGST_B(rid)           gConfig.ring[(rid)].B

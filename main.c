@@ -63,7 +63,7 @@ uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
 
 // Delayed operation in function idleProcess()
-typedef void (*OnTick_t)(uint16_t);  // Operation callback function typedef
+typedef void (*OnTick_t)(uint16_t, uint8_t);  // Operation callback function typedef
 // func bits
 uint8_t delay_func = 0x00;
 bool delay_up[DELAY_TIMERS];
@@ -73,6 +73,7 @@ uint16_t delay_step[DELAY_TIMERS];
 uint32_t delay_tick[DELAY_TIMERS];
 uint32_t delay_timer[DELAY_TIMERS];
 OnTick_t delay_handler[DELAY_TIMERS];
+uint8_t delay_tag[DELAY_TIMERS];
 
 void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
@@ -220,7 +221,7 @@ int main( void ) {
   
   // Bring the lights to the most recent or default light-on status
   DEVST_OnOff = 0;      // Ensure to turn on the light at next step
-  SetDeviceOnOff(TRUE); // Always turn light on
+  SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
   
   WaitMutex(0x1FFFF);   // about 3 sec
   
@@ -307,22 +308,22 @@ int main( void ) {
 }
 
 // Immediately change brightness and cct
-void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct) {
+void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
   CCT2ColdWarm(_sw ? _br : 0, _cct);
   driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
 }
 
 // Immediately change brightness
-void ChangeDeviceBR(uint16_t _br) {
-  ChangeDeviceStatus(TRUE, (uint8_t)_br, DEVST_WarmCold);
+void ChangeDeviceBR(uint16_t _br, uint8_t _ring) {
+  ChangeDeviceStatus(TRUE, (uint8_t)_br, DEVST_WarmCold, _ring);
 }
 
 // Immediately change cct
-void ChangeDeviceCCT(uint16_t _cct) {
-  ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, _cct);
+void ChangeDeviceCCT(uint16_t _cct, uint8_t _ring) {
+  ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, _cct, _ring);
 }
 
-void DelaySendMsg(uint16_t _msg) {
+void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
   switch( _msg ) {
   case 1:
     // send current on/off status
@@ -341,7 +342,11 @@ void DelaySendMsg(uint16_t _msg) {
 }
 
 // Gradually turn on or off
-bool SetDeviceOnOff(bool _sw) {
+bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
+  
+#ifdef RING_INDIVIDUAL_COLOR
+#else
+  
   if( _sw != DEVST_OnOff ) {
     uint8_t _Brightness = (DEVST_Bright >= BR_MIN_VALUE ? DEVST_Bright : DEFAULT_BRIGHTNESS);
 
@@ -358,6 +363,7 @@ bool SetDeviceOnOff(bool _sw) {
       delay_timer[DELAY_TIM_MSG] = 0xFF;
       delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
       delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
+      delay_tag[DELAY_TIM_MSG] = _ring;
       BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
       */
     }
@@ -374,24 +380,31 @@ bool SetDeviceOnOff(bool _sw) {
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
     delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
+    delay_tag[DELAY_TIM_ONOFF] = _ring;
     BF_SET(delay_func, 1, DELAY_TIM_ONOFF, 1); // Enable OnOff operation
     
 #else
 
     // To the final status
-    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
+    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold, _ring);
 
 #endif    
 
     gIsChanged = TRUE;
     return TRUE;
   }
+
+#endif
   
   return FALSE;
 }
 
 // Gradually change brightness
-bool SetDeviceBrightness(uint8_t _br) {
+bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
+
+#ifdef RING_INDIVIDUAL_COLOR
+#else
+  
   if( _br != DEVST_Bright ) {
 #ifdef GRADUAL_ONOFF    
     // Smoothly change brightness - set parameters
@@ -414,6 +427,7 @@ bool SetDeviceBrightness(uint8_t _br) {
       delay_timer[DELAY_TIM_MSG] = 0xFF;
       delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
       delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
+      delay_tag[DELAY_TIM_MSG] = _ring;
       BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
       */
     }
@@ -423,20 +437,27 @@ bool SetDeviceBrightness(uint8_t _br) {
     delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
     delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
+    delay_tag[DELAY_TIM_BR] = _ring;
     BF_SET(delay_func, 1, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
 #else    
-    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
+    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold, _ring);
 #endif
 
     gIsChanged = TRUE;
     return TRUE;
   }
   
+#endif
+  
   return FALSE;
 }
 
 // Gradually change cct
-bool SetDeviceCCT(uint16_t _cct) {
+bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
+  
+#ifdef RING_INDIVIDUAL_COLOR
+#else
+  
   if( _cct != DEVST_WarmCold ) {
 #ifdef GRADUAL_CCT    
     // Smoothly change CCT - set parameters
@@ -453,34 +474,80 @@ bool SetDeviceCCT(uint16_t _cct) {
     delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
     delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
+    delay_tag[DELAY_TIM_CCT] = _ring;
     BF_SET(delay_func, 1, DELAY_TIM_CCT, 1); // Enable CCT Dimmer operation
 #else    
-    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold);
+    ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold, _ring);
 #endif
     
     gIsChanged = TRUE;
     return TRUE;
   }
   
+#endif
+  
   return FALSE;
 }
 
 // Gradually change on/off, brightness and cct in one
-bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct) {
-  if( _sw != DEVST_OnOff ) {
-    DEVST_Bright = _br;
-    DEVST_WarmCold = _cct;
-    SetDeviceOnOff(_sw);
+bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
+#ifdef RING_INDIVIDUAL_COLOR
+  
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+  uint8_t oldSW = RINGST_OnOff(r_index);
+  uint8_t oldBR = RINGST_Bright(r_index);
+  uint8_t oldCCT = RINGST_WarmCold(r_index);
+  
+  if( _ring == RING_ID_ALL ) {
+    RINGST_OnOff(0) = _sw;
+    RINGST_OnOff(1) = _sw;
+    RINGST_OnOff(2) = _sw;
+    RINGST_Bright(0) = _br;
+    RINGST_Bright(1) = _br;
+    RINGST_Bright(2) = _br;
+    RINGST_WarmCold(0) = _cct;
+    RINGST_WarmCold(1) = _cct;
+    RINGST_WarmCold(2) = _cct;
+  } else
+  {
+    RINGST_OnOff(_ring-1) = _sw;
+    RINGST_Bright(_ring-1) = _br;
+    RINGST_WarmCold(_ring-1) = _cct;
+  }
+  
+  if( _sw != oldSW ) {
+    RINGST_OnOff(r_index) = oldSW;
+    SetDeviceOnOff(_sw, _ring);
     return TRUE;
   }
-
-  if( _br != DEVST_Bright ) {
-    DEVST_WarmCold = _cct;
-    SetDeviceBrightness(_br);
+  
+  if( _br != oldBR ) {
+    RINGST_Bright(r_index) = oldBR;
+    SetDeviceBrightness(_br, _ring);
     return TRUE;    
   }
   
-  return SetDeviceCCT(_cct);
+  RINGST_WarmCold(r_index) = oldCCT;
+  return SetDeviceCCT(_cct, _ring);
+
+#else  
+  
+  if( _sw != DEVST_OnOff ) {
+    DEVST_Bright = _br;
+    DEVST_WarmCold = _cct;
+    SetDeviceOnOff(_sw, _ring);
+    return TRUE;
+  }
+  
+  if( _br != DEVST_Bright ) {
+    DEVST_WarmCold = _cct;
+    SetDeviceBrightness(_br, _ring);
+    return TRUE;    
+  }
+  
+  return SetDeviceCCT(_cct, _ring);
+  
+#endif  
 }
 
 bool isTimerCompleted(uint8_t _tmr) {
@@ -500,10 +567,10 @@ bool isTimerCompleted(uint8_t _tmr) {
   if( delay_handler[_tmr] ) {
     if( bFinished ) {
       // Completed - to the final status
-      (*delay_handler[_tmr])(delay_to[_tmr]);
+      (*delay_handler[_tmr])(delay_to[_tmr], delay_tag[_tmr]);
     } else {
       // Progress
-      (*delay_handler[_tmr])(delay_from[_tmr]);
+      (*delay_handler[_tmr])(delay_from[_tmr], delay_tag[_tmr]);
     }
   }
   
