@@ -403,11 +403,15 @@
           <name>BICOMP</name>
           <file> 81</file>
         </tool>
+        <tool>
+          <name>ICCSTM8</name>
+          <file> 58</file>
+        </tool>
       </outputs>
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 16 43 13 76 88 77 80 5 23 7 54 87 82 31 9 45 56 39 86 25 48 32 1 22 4 41 47 34 52 84 73 50 27 61 60 53 33</file>
+          <file> 16 76 43 13 88 80 5 23 7 54 87 82 77 31 9 45 56 39 86 25 48 32 1 22 4 41 47 34 52 84 73 50 27 61 60 53 33</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>

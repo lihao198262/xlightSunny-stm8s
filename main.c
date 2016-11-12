@@ -310,6 +310,13 @@ int main( void ) {
 // Immediately change brightness and cct
 void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
   CCT2ColdWarm(_sw ? _br : 0, _cct);
+  
+  // ToDo: ring individual control
+  // if( _ring == RING_ID_ALL ) { 
+  //    change ring one by one;
+  // } else {
+  //    change one specific ring
+  // }
   driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
 }
 
@@ -345,6 +352,42 @@ void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
 bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
   
 #ifdef RING_INDIVIDUAL_COLOR
+  
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+  if( _sw != RINGST_OnOff(r_index) ) {
+    uint8_t _Brightness = (RINGST_Bright(r_index) >= BR_MIN_VALUE ? RINGST_Bright(r_index) : DEFAULT_BRIGHTNESS);
+
+    RINGST_OnOff(r_index) = _sw;
+    if( _Brightness != RINGST_Bright(r_index) ) {
+      RINGST_Bright(r_index) = _Brightness;
+    }
+    
+#ifdef GRADUAL_ONOFF
+
+    // Smoothly change brightness - set parameters
+    delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
+    delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
+    delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
+
+    // Smoothly change brightness - set timer
+    delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
+    delay_tag[DELAY_TIM_ONOFF] = _ring;
+    BF_SET(delay_func, 1, DELAY_TIM_ONOFF, 1); // Enable OnOff operation
+    
+#else
+
+    // To the final status
+    ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), RINGST_WarmCold(r_index), _ring);
+
+#endif    
+
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
 #else
   
   if( _sw != DEVST_OnOff ) {
@@ -403,6 +446,38 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
 
 #ifdef RING_INDIVIDUAL_COLOR
+  
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+  if( _br != RINGST_Bright(r_index) ) {
+#ifdef GRADUAL_ONOFF    
+    // Smoothly change brightness - set parameters
+    delay_from[DELAY_TIM_BR] = RINGST_Bright(r_index);
+    delay_to[DELAY_TIM_BR] = _br;
+    delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
+    delay_step[DELAY_TIM_BR] = BRIGHTNESS_STEP;
+#endif
+    
+    bool newSW = (_br >= BR_MIN_VALUE);
+    RINGST_Bright(r_index) = _br;
+    if( RINGST_OnOff(r_index) != newSW ) {
+      RINGST_OnOff(r_index) = newSW;
+    }
+    
+#ifdef GRADUAL_ONOFF
+    // Smoothly change brightness - set timer
+    delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
+    delay_tag[DELAY_TIM_BR] = _ring;
+    BF_SET(delay_func, 1, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
+#else    
+    ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), RINGST_WarmCold(r_index), _ring);
+#endif
+
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
 #else
   
   if( _br != DEVST_Bright ) {
@@ -456,6 +531,34 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
 bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
   
 #ifdef RING_INDIVIDUAL_COLOR
+  
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+  if( _cct != RINGST_WarmCold(r_index) ) {
+#ifdef GRADUAL_CCT    
+    // Smoothly change CCT - set parameters
+    delay_from[DELAY_TIM_CCT] = RINGST_WarmCold(r_index);
+    delay_to[DELAY_TIM_CCT] = _cct;
+    delay_up[DELAY_TIM_CCT] = (delay_from[DELAY_TIM_CCT] < delay_to[DELAY_TIM_CCT]);
+    delay_step[DELAY_TIM_CCT] = CCT_STEP;
+#endif
+    
+    RINGST_WarmCold(r_index) = _cct;
+    
+#ifdef GRADUAL_CCT
+    // Smoothly change CCT - set timer
+    delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
+    delay_tag[DELAY_TIM_CCT] = _ring;
+    BF_SET(delay_func, 1, DELAY_TIM_CCT, 1); // Enable CCT Dimmer operation
+#else    
+    ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), RINGST_WarmCold(r_index), _ring);
+#endif
+    
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
 #else
   
   if( _cct != DEVST_WarmCold ) {
