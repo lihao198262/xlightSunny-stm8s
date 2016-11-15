@@ -143,6 +143,7 @@ void LoadConfig()
       gConfig.ring[1] = gConfig.ring[0];
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
+      gConfig.hasSiblingMCU = 0;
       memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
       sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
@@ -218,6 +219,12 @@ int main( void ) {
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
+
+  // Try to communicte with sibling MCUs (STM8S003F), 
+  /// if got response, which means the device supports indiviual ring control.
+  /// Also check RING_INDIVIDUAL_COLOR condition
+  // ToDo:
+  // gConfig.hasSiblingMCU = PingSiblingMCU();
   
   // Bring the lights to the most recent or default light-on status
   DEVST_OnOff = 0;      // Ensure to turn on the light at next step
@@ -311,13 +318,17 @@ int main( void ) {
 void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
   CCT2ColdWarm(_sw ? _br : 0, _cct);
   
-  // ToDo: ring individual control
-  // if( _ring == RING_ID_ALL ) { 
-  //    change ring one by one;
-  // } else {
-  //    change one specific ring
-  // }
-  driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
+  if( gConfig.hasSiblingMCU ) {
+    // ToDo: ring individual control
+    // if( _ring == RING_ID_ALL ) { 
+    //    change ring one by one;
+    // } else {
+    //    change one specific ring
+    // }
+  } else {
+    // Control all rings together
+    driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
+  }
 }
 
 // Immediately change brightness

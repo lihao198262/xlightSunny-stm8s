@@ -114,7 +114,8 @@ typedef struct
   char Organization[24];                    // Organization name
   char ProductName[24];                     // Product name
   UC rfPowerLevel             :2;           // RF Power Level 0..3
-  UC Reserved1                :6;           // Reserved bits
+  UC hasSiblingMCU            :1;           // Whether sibling MCU presents
+  UC Reserved1                :5;           // Reserved bits
 } Config_t;
 
 extern Config_t gConfig;
