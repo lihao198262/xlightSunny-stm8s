@@ -220,9 +220,9 @@ int main( void ) {
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
 
-  // Try to communicte with sibling MCUs (STM8S003F), 
+  // Try to communicate with sibling MCUs (STM8S003F), 
   /// if got response, which means the device supports indiviual ring control.
-  /// Also check RING_INDIVIDUAL_COLOR condition
+  /// Also need to enable RING_INDIVIDUAL_COLOR condition for indiviual ring control.
   // ToDo:
   // gConfig.hasSiblingMCU = PingSiblingMCU();
   
