@@ -14,6 +14,11 @@
 #define SHORT                     int16_t
 #define LONG                      int32_t
 
+// Switch value for set power command
+#define DEVICE_SW_OFF               0       // Turn Off
+#define DEVICE_SW_ON                1       // Turn On
+#define DEVICE_SW_TOGGLE            2       // Toggle
+
 // Node type
 #define NODE_TYP_GW               'g'
 #define NODE_TYP_LAMP             'l'

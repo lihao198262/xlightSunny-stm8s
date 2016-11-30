@@ -88,7 +88,7 @@ uint8_t ParseProtocol(){
     if( _type == V_STATUS ) {
       if( !_isAck ) {
         // set main lamp(ID:1) power(V_STATUS:2) on/off
-        bool _OnOff = msg.payload.bValue;
+        bool _OnOff = (msg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : msg.payload.bValue == DEVICE_SW_ON);
         sprintf(strOutput, "Got lights:%d turn %s msg", _sensor, _OnOff ? "on" : "off");
         SetDeviceOnOff(_OnOff, RING_ID_ALL);
         if( _needAck ) {
