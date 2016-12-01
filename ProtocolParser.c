@@ -3,8 +3,6 @@
 #include "MyMessage.h"
 #include "LightPwmDrv.h"
 
-char strOutput[50];
-
 // Assemble message
 void build(uint8_t _destination, uint8_t _sensor, uint8_t _command, uint8_t _type, bool _enableAck, bool _isAck)
 {
@@ -35,9 +33,6 @@ uint8_t ParseProtocol(){
       uint8_t lv_nodeID = _sensor;
       if( lv_nodeID == NODEID_GATEWAY || lv_nodeID == NODEID_DUMMY ) {
       } else {
-        sprintf(strOutput, "Get NodeId: %d, networkId: %X:%X:%X:%X:%X:%X:%X:%X", lv_nodeID, 
-                msg.payload.data[0], msg.payload.data[1], msg.payload.data[2], msg.payload.data[3], 
-                msg.payload.data[4], msg.payload.data[5], msg.payload.data[6], msg.payload.data[7]);
         gConfig.nodeID = lv_nodeID;
         gIsChanged = TRUE;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
@@ -56,7 +51,6 @@ uint8_t ParseProtocol(){
         gConfig.token = msg.payload.uiValue;
         gConfig.present = (gConfig.token >  0);
         gIsChanged = TRUE;
-        sprintf(strOutput, "Got Presentation Ack Node:%d token:%d", gConfig.nodeID, gConfig.token);
         // Inform controller with latest status
         Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE, RING_ID_ALL);
         return 1;
@@ -89,7 +83,6 @@ uint8_t ParseProtocol(){
       if( !_isAck ) {
         // set main lamp(ID:1) power(V_STATUS:2) on/off
         bool _OnOff = (msg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : msg.payload.bValue == DEVICE_SW_ON);
-        sprintf(strOutput, "Got lights:%d turn %s msg", _sensor, _OnOff ? "on" : "off");
         SetDeviceOnOff(_OnOff, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevBrightness(_sender, _sensor);
@@ -99,8 +92,26 @@ uint8_t ParseProtocol(){
     } else if( _type == V_PERCENTAGE ) {
       if( !_isAck ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
-        uint8_t _Brightness = msg.payload.bValue;
-        sprintf(strOutput, "Got lights:%d dimmer %d msg", _sensor, _Brightness);
+        uint8_t _Brightness;
+        if( miGetLength() == 2 ) {
+          switch( msg.payload.data[0] ) {
+          case OPERATOR_ADD:
+            _Brightness = DEVST_Bright + msg.payload.data[1];
+            if( _Brightness > 100 ) _Brightness = 100;
+            break;
+          case OPERATOR_SUB:
+            if(DEVST_Bright > msg.payload.data[1] + BR_MIN_VALUE) {
+              _Brightness = DEVST_Bright - msg.payload.data[1];
+            } else {
+              _Brightness = BR_MIN_VALUE;
+            }
+            break;
+          default:      // OPERATOR_SET
+            _Brightness = msg.payload.data[1];
+          }
+        } else {
+          _Brightness = msg.payload.bValue;
+        }
         SetDeviceBrightness(_Brightness, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevBrightness(_sender, _sensor);
@@ -110,9 +121,27 @@ uint8_t ParseProtocol(){
     } else if( _type == V_LEVEL ) { // CCT
       if( !_isAck ) {
         // Get main lamp(ID:1) CCT V_LEVEL
-        //uint16_t _CCTValue = (uint16_t)msg.payload.uiValue;
-        uint16_t _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
-        sprintf(strOutput, "Got lights:%d CCT level %d msg", _sensor, _CCTValue);
+        uint16_t _CCTValue;
+        if( miGetLength() == 3 ) {
+          uint16_t _deltaValue = msg.payload.data[2] * 256 + msg.payload.data[1];
+          switch( msg.payload.data[0] ) {
+          case OPERATOR_ADD:
+            _CCTValue = DEVST_WarmCold + _deltaValue;
+            if( _CCTValue > CT_MAX_VALUE ) _CCTValue = CT_MAX_VALUE;
+            break;
+          case OPERATOR_SUB:
+            if(DEVST_WarmCold > _deltaValue + CT_MIN_VALUE) {
+              _CCTValue = DEVST_WarmCold - _deltaValue;
+            } else {
+              _CCTValue = CT_MIN_VALUE;
+            }
+            break;
+          default:      // OPERATOR_SET
+            _CCTValue = _deltaValue;
+          }
+        } else {
+          _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
+        }
         SetDeviceCCT(_CCTValue, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevCCT(_sender, _sensor);
