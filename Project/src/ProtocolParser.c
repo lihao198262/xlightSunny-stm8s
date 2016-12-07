@@ -38,9 +38,7 @@ uint8_t ParseProtocol(){
         gConfig.nodeID = lv_nodeID;
         gIsChanged = TRUE;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
-        UpdateNodeAddress();
-        // I'm alive
-        Msg_Presentation();
+        GotNodeID();
         return 1;
       }
     }    
@@ -55,6 +53,7 @@ uint8_t ParseProtocol(){
         gIsChanged = TRUE;
         // Inform controller with latest status
         Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE, RING_ID_ALL);
+        GotPresented();
         return 1;
       }
     }
@@ -94,7 +93,26 @@ uint8_t ParseProtocol(){
     } else if( _type == V_PERCENTAGE ) {
       if( !_isAck ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
-        uint8_t _Brightness = msg.payload.bValue;
+        uint8_t _Brightness;
+        if( miGetLength() == 2 ) {
+          switch( msg.payload.data[0] ) {
+          case OPERATOR_ADD:
+            _Brightness = DEVST_Bright + msg.payload.data[1];
+            if( _Brightness > 100 ) _Brightness = 100;
+            break;
+          case OPERATOR_SUB:
+            if(DEVST_Bright > msg.payload.data[1] + BR_MIN_VALUE) {
+              _Brightness = DEVST_Bright - msg.payload.data[1];
+            } else {
+              _Brightness = BR_MIN_VALUE;
+            }
+            break;
+          default:      // OPERATOR_SET
+            _Brightness = msg.payload.data[1];
+          }
+        } else {
+          _Brightness = msg.payload.bValue;
+        }
         SetDeviceBrightness(_Brightness, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevBrightness(_sender, _sensor);
@@ -104,8 +122,27 @@ uint8_t ParseProtocol(){
     } else if( _type == V_LEVEL ) { // CCT
       if( !_isAck ) {
         // Get main lamp(ID:1) CCT V_LEVEL
-        //uint16_t _CCTValue = (uint16_t)msg.payload.uiValue;
-        uint16_t _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
+        uint16_t _CCTValue;
+        if( miGetLength() == 3 ) {
+          uint16_t _deltaValue = msg.payload.data[2] * 256 + msg.payload.data[1];
+          switch( msg.payload.data[0] ) {
+          case OPERATOR_ADD:
+            _CCTValue = DEVST_WarmCold + _deltaValue;
+            if( _CCTValue > CT_MAX_VALUE ) _CCTValue = CT_MAX_VALUE;
+            break;
+          case OPERATOR_SUB:
+            if(DEVST_WarmCold > _deltaValue + CT_MIN_VALUE) {
+              _CCTValue = DEVST_WarmCold - _deltaValue;
+            } else {
+              _CCTValue = CT_MIN_VALUE;
+            }
+            break;
+          default:      // OPERATOR_SET
+            _CCTValue = _deltaValue;
+          }
+        } else {
+          _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
+        }
         SetDeviceCCT(_CCTValue, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevCCT(_sender, _sensor);

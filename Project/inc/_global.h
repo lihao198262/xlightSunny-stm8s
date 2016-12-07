@@ -136,7 +136,8 @@ extern uint8_t _uniqueID[UNIQUE_ID_LEN];
 extern uint16_t pwm_Warm;
 extern uint16_t pwm_Cold;
 
-void UpdateNodeAddress(void);
+void GotNodeID();
+void GotPresented();
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);
 void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceOnOff(bool _sw, uint8_t _ring);

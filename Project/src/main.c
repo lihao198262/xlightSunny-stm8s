@@ -42,6 +42,13 @@ Connections:
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
+// System Startup Status
+#define SYS_INIT                        0
+#define SYS_RESET                       1
+#define SYS_WAIT_NODEID                 2
+#define SYS_WAIT_PRESENTED              3
+#define SYS_RUNNING                     5
+
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)
   #define     UNIQUE_ID_ADDRESS         (0x48CD)
@@ -60,6 +67,9 @@ bool gIsChanged = FALSE;
 uint8_t _uniqueID[UNIQUE_ID_LEN];
 
 // Moudle variables
+uint8_t mStatus = SYS_INIT;
+bool mGotNodeID = FALSE;
+bool mGotPresented = FALSE;
 uint8_t mutex = 0;
 uint8_t rx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
 uint8_t tx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
@@ -139,16 +149,23 @@ void SaveConfig()
   }
 }
 
+// Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
+void InitNodeAddress() {
+  gConfig.nodeID = BASESERVICE_ADDRESS; // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
+  memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
+}
+
 // Load config from Flash
 void LoadConfig()
 {
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || DEVST_WarmCold< CT_MIN_VALUE 
-       || DEVST_WarmCold > CT_MAX_VALUE || gConfig.rfPowerLevel > RF24_PA_MAX ) {
+       || DEVST_WarmCold > CT_MAX_VALUE || gConfig.rfPowerLevel > RF24_PA_MAX 
+       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
-      gConfig.nodeID = BASESERVICE_ADDRESS;  // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
+      InitNodeAddress();
       gConfig.present = 0;
       gConfig.type = devtypWRing3;
       gConfig.ring[0].State = 1;
@@ -161,7 +178,6 @@ void LoadConfig()
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
       gConfig.hasSiblingMCU = 0;
-      memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
       sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       gIsChanged = TRUE;
@@ -236,23 +252,82 @@ bool SendMyMessage() {
   return(mutex > 0);
 }
 
+void GotNodeID() {
+  mGotNodeID = TRUE;
+}
+
+void GotPresented() {
+  mGotPresented = TRUE;
+}
+
 bool SayHelloToDevice(bool infinate) {
   uint8_t _count = 0;
+  uint8_t _presentCnt = 0;
+  bool _doNow = FALSE;
+
+  // Update RF addresses and Setup RF environment
+  UpdateNodeAddress();
+  
+  if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+    mStatus = SYS_WAIT_NODEID;
+  } else {
+    mStatus = SYS_WAIT_PRESENTED;
+  }
+
   while(1) {
     if( _count++ == 0 ) {
-      UpdateNodeAddress();
-      if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+      _doNow = FALSE;
+      if( mStatus == SYS_WAIT_NODEID ) {
         // Request for NodeID
         Msg_RequestNodeID();
+        mGotNodeID = FALSE;
       } else {
         // Send Presentation Message
         Msg_Presentation();
+        mGotPresented = FALSE;
+        _presentCnt++;
       }
       
-      if( SendMyMessage() ) break;
-      if( !infinate ) return FALSE;
+      if( !SendMyMessage() ) {
+        if( !infinate ) return FALSE;
+      } else {
+        // Wait response
+        uint16_t tick = 0xAFFF;
+        while(tick--) {
+          // Feed the Watchdog
+          feed_wwdg();
+          if( mStatus == SYS_WAIT_NODEID && mGotNodeID ) {
+            UpdateNodeAddress();
+            mStatus = SYS_WAIT_PRESENTED;
+            _presentCnt = 0;
+            _doNow = TRUE;
+            break;
+          }
+          if( mStatus == SYS_WAIT_PRESENTED && mGotPresented ) {
+            mStatus = SYS_RUNNING;
+            return TRUE;
+          }
+        }
+      }
     }
 
+    // Can't presented for a few times, then try request NodeID again
+    // Either because SmartController is off, or changed
+    if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= 5 ) {
+      _presentCnt = 0;
+      // Reset RF Address
+      InitNodeAddress();
+      UpdateNodeAddress();
+      mStatus = SYS_WAIT_NODEID;
+      _doNow = TRUE;
+    }
+    
+    if( _doNow ) {
+      // Send Message Immediately
+      _count = 0;
+      continue;
+    }
+    
     // Feed the Watchdog
     feed_wwdg();
     
@@ -265,7 +340,7 @@ bool SayHelloToDevice(bool infinate) {
 }
 
 int main( void ) {
-  
+    
   //After reset, the device restarts by default with the HSI clock divided by 8.
   /* High speed internal clock prescaler: 1 */
   CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV1);  // now: HSI=16M prescale = 1; sysclk = 16M
@@ -273,56 +348,55 @@ int main( void ) {
   
   // Init CCT
   initTim2PWMFunction();
-  
-  // Go on only if NRF chip is presented
-  RF24L01_init();
-  while(!NRF24L01_Check());
 
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
+  
+  while(1) {
+    // Go on only if NRF chip is presented
+    RF24L01_init();
+    while(!NRF24L01_Check());
 
-  // Try to communicate with sibling MCUs (STM8S003F), 
-  /// if got response, which means the device supports indiviual ring control.
-  /// Also need to enable RING_INDIVIDUAL_COLOR condition for indiviual ring control.
-  // ToDo:
-  // gConfig.hasSiblingMCU = PingSiblingMCU();
-  
-  // Bring the lights to the most recent or default light-on status
-  DEVST_OnOff = 0;      // Ensure to turn on the light at next step
-  SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
-  
-  WaitMutex(0x1FFFF);   // about 3 sec
-  
-  // Update RF addresses and Setup RF environment
-  //gConfig.nodeID = 0x11; // test
-  //gConfig.nodeID = NODEID_MAINDEVICE;   // test
-  //gConfig.nodeID = BASESERVICE_ADDRESS;   // test
-  //memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH); // test
-  UpdateNodeAddress();
-
-  // IRQ
-  NRF2401_EnableIRQ();
-  
-  // Must establish connection firstly
-  SayHelloToDevice(TRUE);
-  
-  // Init Watchdog
-  wwdg_init();
-  
-  while (1) {
-    // Feed the Watchdog
-    feed_wwdg();
-
-    // Send message if ready
-    SendMyMessage();
+    // Try to communicate with sibling MCUs (STM8S003F), 
+    /// if got response, which means the device supports indiviual ring control.
+    /// Also need to enable RING_INDIVIDUAL_COLOR condition for indiviual ring control.
+    // ToDo:
+    // gConfig.hasSiblingMCU = PingSiblingMCU();
     
-    // Save Config if Changed
-    SaveConfig();
-    
-    // Idle process
-    idleProcess();
+    // Bring the lights to the most recent or default light-on status
+    if( mStatus == SYS_INIT ) {
+      DEVST_OnOff = 0;      // Ensure to turn on the light at next step
+      SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
+      delay_ms(1500);   // about 1.5 sec
+
+      // Init Watchdog
+      //wwdg_init();
+    }
+  
+    // IRQ
+    NRF2401_EnableIRQ();
+  
+    // Must establish connection firstly
+    SayHelloToDevice(TRUE);
+  
+    while (mStatus == SYS_RUNNING) {
+      // Feed the Watchdog
+      feed_wwdg();
+
+      // Send message if ready
+      SendMyMessage();
+      
+      // Save Config if Changed
+      SaveConfig();
+      
+      // Idle process
+      idleProcess();
+      
+      // ToDo: Check heartbeats
+      // mStatus = SYS_REST, if timeout or received a value 3 times consecutively
+    }
   }
 }
 
