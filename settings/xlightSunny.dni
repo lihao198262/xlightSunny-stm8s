@@ -9,7 +9,7 @@ TriggerName=main
 LimitSize=0
 ByteLimit=50
 [DebugChecksum]
-Checksum=-1180768380
+Checksum=2091192596
 [CallStack]
 ShowArgs=0
 [Disassembly]
@@ -52,8 +52,7 @@ Bp1=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.300.13" 1 0 0 0 "" 0 ""
 Bp2=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.307.13" 1 0 0 0 "" 0 ""
 Bp3=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.280.7" 1 0 0 0 "" 0 ""
 Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.317.7" 1 0 0 0 "" 0 ""
-Bp5=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.147.5" 1 0 0 0 "" 0 ""
-Count=6
+Count=5
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""

@@ -369,10 +369,11 @@ int main( void ) {
     if( mStatus == SYS_INIT ) {
       DEVST_OnOff = 0;      // Ensure to turn on the light at next step
       SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
-      delay_ms(1500);   // about 1.5 sec
+      //delay_ms(1500);   // about 1.5 sec
+      WaitMutex(0x1FFFF); // use this line to bring the lights to target brightness
 
       // Init Watchdog
-      //wwdg_init();
+      wwdg_init();
     }
   
     // IRQ
