@@ -3,6 +3,8 @@
 #include "MyMessage.h"
 #include "LightPwmDrv.h"
 
+uint8_t bMsgReady = 0;
+
 // Assemble message
 void build(uint8_t _destination, uint8_t _sensor, uint8_t _command, uint8_t _type, bool _enableAck, bool _isAck)
 {
@@ -92,26 +94,7 @@ uint8_t ParseProtocol(){
     } else if( _type == V_PERCENTAGE ) {
       if( !_isAck ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
-        uint8_t _Brightness;
-        if( miGetLength() == 2 ) {
-          switch( msg.payload.data[0] ) {
-          case OPERATOR_ADD:
-            _Brightness = DEVST_Bright + msg.payload.data[1];
-            if( _Brightness > 100 ) _Brightness = 100;
-            break;
-          case OPERATOR_SUB:
-            if(DEVST_Bright > msg.payload.data[1] + BR_MIN_VALUE) {
-              _Brightness = DEVST_Bright - msg.payload.data[1];
-            } else {
-              _Brightness = BR_MIN_VALUE;
-            }
-            break;
-          default:      // OPERATOR_SET
-            _Brightness = msg.payload.data[1];
-          }
-        } else {
-          _Brightness = msg.payload.bValue;
-        }
+        uint8_t _Brightness = msg.payload.bValue;
         SetDeviceBrightness(_Brightness, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevBrightness(_sender, _sensor);
@@ -121,27 +104,8 @@ uint8_t ParseProtocol(){
     } else if( _type == V_LEVEL ) { // CCT
       if( !_isAck ) {
         // Get main lamp(ID:1) CCT V_LEVEL
-        uint16_t _CCTValue;
-        if( miGetLength() == 3 ) {
-          uint16_t _deltaValue = msg.payload.data[2] * 256 + msg.payload.data[1];
-          switch( msg.payload.data[0] ) {
-          case OPERATOR_ADD:
-            _CCTValue = DEVST_WarmCold + _deltaValue;
-            if( _CCTValue > CT_MAX_VALUE ) _CCTValue = CT_MAX_VALUE;
-            break;
-          case OPERATOR_SUB:
-            if(DEVST_WarmCold > _deltaValue + CT_MIN_VALUE) {
-              _CCTValue = DEVST_WarmCold - _deltaValue;
-            } else {
-              _CCTValue = CT_MIN_VALUE;
-            }
-            break;
-          default:      // OPERATOR_SET
-            _CCTValue = _deltaValue;
-          }
-        } else {
-          _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
-        }
+        //uint16_t _CCTValue = (uint16_t)msg.payload.uiValue;
+        uint16_t _CCTValue = msg.payload.data[1] * 256 + msg.payload.data[0];
         SetDeviceCCT(_CCTValue, RING_ID_ALL);
         if( _needAck ) {
           Msg_DevCCT(_sender, _sensor);
@@ -190,12 +154,22 @@ uint8_t ParseProtocol(){
   return 0;
 }
 
+void Msg_RequestNodeID() {
+  // Request NodeID for device
+  build(BASESERVICE_ADDRESS, NODE_TYP_LAMP, C_INTERNAL, I_ID_REQUEST, 1, 0);
+  miSetPayloadType(P_ULONG32);
+  miSetLength(UNIQUE_ID_LEN);
+  memcpy(msg.payload.data, _uniqueID, UNIQUE_ID_LEN);
+  bMsgReady = 1;
+}
+
 // Prepare device presentation message
 void Msg_Presentation() {
   build(NODEID_GATEWAY, gConfig.type, C_PRESENTATION, S_LIGHT, 1, 0);
   miSetPayloadType(P_ULONG32);
   miSetLength(UNIQUE_ID_LEN);
   memcpy(msg.payload.data, _uniqueID, UNIQUE_ID_LEN);
+  bMsgReady = 1;
 }
 
 // Prepare device On/Off status message
@@ -204,6 +178,7 @@ void Msg_DevOnOff(uint8_t _to, uint8_t _dest) {
   miSetLength(1);
   miSetPayloadType(P_BYTE);
   msg.payload.bValue = DEVST_OnOff;
+  bMsgReady = 1;
 }
 
 // Prepare device brightness message
@@ -215,6 +190,7 @@ void Msg_DevBrightness(uint8_t _to, uint8_t _dest) {
   miSetPayloadType(P_BYTE);
   msg.payload.data[0] = DEVST_OnOff;
   msg.payload.data[1] = DEVST_Bright;
+  bMsgReady = 1;
 }
 
 // Prepare device CCT message
@@ -224,8 +200,9 @@ void Msg_DevCCT(uint8_t _to, uint8_t _dest) {
   build(_to, _dest, C_REQ, V_LEVEL, 0, 1);
   miSetLength(2);
   miSetPayloadType(P_UINT16);
-  msg.payload.data[0] = DEVST_WarmCold % 256;;
-  msg.payload.data[1] = DEVST_WarmCold / 256;  ;
+  msg.payload.data[0] = DEVST_WarmCold % 256;
+  msg.payload.data[1] = DEVST_WarmCold / 256;
+  bMsgReady = 1;
 }
 
 // Prepare device status message
@@ -282,6 +259,7 @@ void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   
   miSetLength(payl_len);
   miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
 }
 
 // Prepare topology message
@@ -327,4 +305,5 @@ void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   
   miSetLength(payl_len);
   miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
 }

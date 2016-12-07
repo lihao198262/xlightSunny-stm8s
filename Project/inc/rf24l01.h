@@ -47,6 +47,8 @@
 #define CSN_HIGH        GPIO_WriteHigh(GPIOC, GPIO_PIN_4)
 #define CE_LOW          GPIO_WriteLow(GPIOC, GPIO_PIN_3)
 #define CE_HIGH         GPIO_WriteHigh(GPIOC, GPIO_PIN_3)
+#define SCK_LOW         GPIO_WriteLow(GPIOC, GPIO_PIN_5)
+#define SCK_HIGH        GPIO_WriteHigh(GPIOC, GPIO_PIN_5)
 
 
 //Make sure your compiler orders the bits correctly in the structs
@@ -187,6 +189,9 @@ typedef struct _RF24L01_reg_FEATURE_content {
 } RF24L01_reg_FEATURE_content;
 
 void RF24L01_init(void);
+void RF24L01_DeInit(void);
+void NRF2401_EnableIRQ(void);
+bool NRF24L01_Check(void);
 void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t boardcast);
 void RF24L01_set_mode_TX(void);
 void RF24L01_set_mode_RX(void);
@@ -195,7 +200,7 @@ uint8_t RF24L01_is_data_available(void);
 void RF24L01_read_payload(uint8_t *data, uint8_t length);
 void RF24L01_write_payload(uint8_t *data, uint8_t length);
 void RF24L01_read_buf(uint8_t reg, uint8_t *data, uint8_t length);
-void RF24L01_write_buf(uint8_t reg, uint8_t *data, uint8_t length);
+void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t length);
 void RF24L01_clear_interrupts(void);
 //void RF24L01_show_registers(void);
 

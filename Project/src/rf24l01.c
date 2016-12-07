@@ -33,6 +33,52 @@ void RF24L01_init(void) {
   SPI_Cmd(ENABLE);  
 }
 
+void RF24L01_DeInit(void) {
+  disableInterrupts();
+  CE_LOW;
+  CSN_LOW;
+  SPI_Cmd(DISABLE);
+  GPIO_Init(GPIOC, GPIO_PIN_3, GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOC, GPIO_PIN_5, GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOC, GPIO_PIN_6, GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOC, GPIO_PIN_7, GPIO_MODE_IN_FL_NO_IT);
+  GPIO_Init(GPIOC, GPIO_PIN_4, GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOC, GPIO_PIN_2, GPIO_MODE_IN_FL_IT);
+  enableInterrupts();
+}
+
+void NRF2401_EnableIRQ(void) {
+  disableInterrupts();
+  GPIO_Init(
+    GPIOC,
+    GPIO_PIN_2,
+    GPIO_MODE_IN_FL_IT
+  );
+  EXTI_SetExtIntSensitivity(EXTI_PORT_GPIOC, EXTI_SENSITIVITY_FALL_ONLY);
+  enableInterrupts();
+}
+
+// Check the existence of NRF24L01 chip
+bool NRF24L01_Check(void)
+{
+  uint8_t check_in_buf[5] = {0x11,0x22,0x33,0x44,0x55};
+  uint8_t check_out_buf[5] = {0x00};
+
+  SCK_LOW;
+  CSN_HIGH;
+  CE_LOW;
+
+  RF24L01_write_register(RF24L01_reg_TX_ADDR, check_in_buf, 5);
+  RF24L01_read_buf(RF24L01_reg_TX_ADDR, check_out_buf, 5);
+
+  if((check_out_buf[0] == 0x11)&&\
+     (check_out_buf[1] == 0x22)&&\
+     (check_out_buf[2] == 0x33)&&\
+     (check_out_buf[3] == 0x44)&&\
+     (check_out_buf[4] == 0x55))return TRUE;
+  else return FALSE;
+}
+
 void RF24L01_send_command(uint8_t command) {
   //Chip select
   CSN_LOW;
@@ -331,46 +377,6 @@ void RF24L01_read_buf(uint8_t reg, uint8_t *data, uint8_t length) {
   
   RF24L01_write_register(RF24L01_reg_STATUS, &status, 1);
   RF24L01_send_command(RF24L01_command_FLUSH_RX);
-}
-
-void RF24L01_write_buf(uint8_t reg, uint8_t *data, uint8_t length) {
-  RF24L01_reg_STATUS_content a;
-  a = RF24L01_get_status();
-  if (a.MAX_RT == 1) {
-    //If MAX_RT, clears it so we can send data
-    *((uint8_t *) &a) = 0;
-    a.TX_DS = 1;
-    RF24L01_write_register(RF24L01_reg_STATUS, (uint8_t *) &a, 1);
-  }
-  
-  uint8_t i;
-  //Chip select
-  CSN_LOW;
-  
-  //Send address and command
-  while (SPI_GetFlagStatus(SPI_FLAG_TXE)== RESET);
-  SPI_SendData(reg);
-  while (SPI_GetFlagStatus(SPI_FLAG_BSY)== SET);
-  while (SPI_GetFlagStatus(SPI_FLAG_RXNE)== RESET);
-  SPI_ReceiveData();
-
-  //Send data
-  for (i=0; i<length; i++) {
-    while (SPI_GetFlagStatus(SPI_FLAG_TXE)== RESET);
-    SPI_SendData(data[i]);
-    while (SPI_GetFlagStatus(SPI_FLAG_BSY)== SET);
-    while (SPI_GetFlagStatus(SPI_FLAG_RXNE)== RESET);
-    SPI_ReceiveData();
-  }
-  
-  //Chip select
-  CSN_HIGH;
-  
-  //Generates an impulsion for CE to send the data
-  CE_HIGH;
-  uint16_t delay = 0xFF;
-  while(delay--);
-  CE_LOW;
 }
 
 uint8_t RF24L01_was_data_sent(void) {

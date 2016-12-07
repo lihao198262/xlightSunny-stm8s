@@ -1,4 +1,5 @@
 #include "_global.h"
+#include "delay.h"
 #include "rf24l01.h"
 #include "MyMessage.h"
 #include "ProtocolParser.h"
@@ -37,6 +38,10 @@ Connections:
 #define ADDRESS_WIDTH                   5
 #define PLOAD_WIDTH                     32
 
+// Window Watchdog
+#define WWDG_COUNTER                    0x7f
+#define WWDG_WINDOW                     0x77
+
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)
   #define     UNIQUE_ID_ADDRESS         (0x48CD)
@@ -56,7 +61,6 @@ uint8_t _uniqueID[UNIQUE_ID_LEN];
 
 // Moudle variables
 uint8_t mutex = 0;
-uint8_t bMsgReady = 0;
 uint8_t rx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
 uint8_t tx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
 uint16_t pwm_Warm = 0;
@@ -74,6 +78,19 @@ uint32_t delay_tick[DELAY_TIMERS];
 uint32_t delay_timer[DELAY_TIMERS];
 OnTick_t delay_handler[DELAY_TIMERS];
 uint8_t delay_tag[DELAY_TIMERS];
+
+// Initialize Window Watchdog
+void wwdg_init() {
+  WWDG_Init(WWDG_COUNTER, WWDG_WINDOW);
+}
+
+// Feed the Window Watchdog
+void feed_wwdg(void) {
+  uint8_t cntValue = WWDG_GetCounter() & WWDG_COUNTER;
+  if( cntValue < WWDG_WINDOW ) {
+    WWDG_SetCounter(WWDG_COUNTER);
+  }
+}
 
 void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
@@ -160,10 +177,6 @@ void UpdateNodeAddress(void) {
   RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, 0);     // Without openning the boardcast pipe
 }
 
-void Delay(uint32_t _timeout) {
-  while(_timeout--);
-}
-
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
     if( idleProcess() > 0 ) return TRUE;
@@ -201,19 +214,69 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   pwm_Cold = ucWarmCold*ucBright/1000 ;
 }
 
+// Send message and switch back to receive mode
+bool SendMyMessage() {
+  if( bMsgReady ) {
+    mutex = 0;
+    RF24L01_set_mode_TX();
+    RF24L01_write_payload(pMsg, PLOAD_WIDTH);
+
+    WaitMutex(0x1FFFF);
+    if (mutex != 1) {
+      //The transmission failed, Notes: mutex == 2 doesn't mean failed
+      //It happens when rx address defers from tx address
+      //asm("nop"); //Place a breakpoint here to see memory
+    }
+    
+    // Switch back to receive mode
+    bMsgReady = 0;
+    RF24L01_set_mode_RX();
+  }
+
+  return(mutex > 0);
+}
+
+bool SayHelloToDevice(bool infinate) {
+  uint8_t _count = 0;
+  while(1) {
+    if( _count++ == 0 ) {
+      UpdateNodeAddress();
+      if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+        // Request for NodeID
+        Msg_RequestNodeID();
+      } else {
+        // Send Presentation Message
+        Msg_Presentation();
+      }
+      
+      if( SendMyMessage() ) break;
+      if( !infinate ) return FALSE;
+    }
+
+    // Feed the Watchdog
+    feed_wwdg();
+    
+    // Failed or Timeout, then repeat init-step
+    delay_ms(500);
+    _count %= 20;  // Every 10 seconds
+  }
+  
+  return TRUE;
+}
+
 int main( void ) {
   
   //After reset, the device restarts by default with the HSI clock divided by 8.
   /* High speed internal clock prescaler: 1 */
   CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV1);  // now: HSI=16M prescale = 1; sysclk = 16M
-  //CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV2);  // now: HSI=16M prescale = 16; sysclk = 1M
+  //CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV2);  // now: HSI=16M prescale = 2; sysclk = 8M
   
   // Init CCT
   initTim2PWMFunction();
   
   // Go on only if NRF chip is presented
   RF24L01_init();
-  //while(NRF24L01_Check());
+  while(!NRF24L01_Check());
 
   // Load config from Flash
   FLASH_DeInit();
@@ -240,77 +303,26 @@ int main( void ) {
   UpdateNodeAddress();
 
   // IRQ
-  GPIO_Init(
-    GPIOC,
-    GPIO_PIN_2,
-    GPIO_MODE_IN_FL_IT
-  );
-  EXTI_SetExtIntSensitivity(EXTI_PORT_GPIOC, EXTI_SENSITIVITY_FALL_ONLY);
-  enableInterrupts();
-
-  if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
-    // Request for NodeID
-    build(BASESERVICE_ADDRESS, NODE_TYP_LAMP, C_INTERNAL, I_ID_REQUEST, 1, 0);
-    miSetPayloadType(P_ULONG32);
-    miSetLength(UNIQUE_ID_LEN);
-    memcpy(msg.payload.data, _uniqueID, UNIQUE_ID_LEN);
-  } else {
-    // Send Presentation Message
-    Msg_Presentation();
-  }
+  NRF2401_EnableIRQ();
   
-  while(1) {
-    mutex = 0;
-    RF24L01_set_mode_RX();
-    RF24L01_set_mode_TX();
-    RF24L01_write_payload(pMsg, PLOAD_WIDTH);
-    // Timeout about 10 sec
-    if( WaitMutex(0x4FFFF) ) {
-      break;
-      //if (mutex == 1) break;
-      //The transmission failed
-      //asm("nop"); //Place a breakpoint here to see memory
-      // Delay for a while to wait controller started
-      //Delay(0x8FFFF);   // about 20 sec
-    }
-    // Timeout, then repeat init-step
-    UpdateNodeAddress();
-  }
-
+  // Must establish connection firstly
+  SayHelloToDevice(TRUE);
+  
+  // Init Watchdog
+  wwdg_init();
+  
   while (1) {
-    // Receive and process message
-    mutex = 0;
-    bMsgReady = 0;
-    RF24L01_set_mode_RX();
-    while(!idleProcess());
-    if (mutex == 1) {
-      RF24L01_read_payload(pMsg, PLOAD_WIDTH);
-      bMsgReady = ParseProtocol();
-    }
-    else {
-      //Something happened
-      WaitMutex(0xFFF);
-      continue;
-    }
+    // Feed the Watchdog
+    feed_wwdg();
+
+    // Send message if ready
+    SendMyMessage();
     
     // Save Config if Changed
     SaveConfig();
     
-    // Send message
-    while( bMsgReady == 1 ) {
-      mutex = 0;
-      bMsgReady = 0;
-      RF24L01_set_mode_TX();
-      RF24L01_write_payload(pMsg, PLOAD_WIDTH);
-
-      // may have more messages
-      WaitMutex(0x1FFFF);
-      if (mutex != 1) {
-        //The transmission failed, Notes: mutex == 2 doesn't mean failed
-        //It happens when rx address defers from tx address
-        //asm("nop"); //Place a breakpoint here to see memory
-      }
-    }
+    // Idle process
+    idleProcess();
   }
 }
 
@@ -346,17 +358,15 @@ void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
   case 1:
     // send current on/off status
     Msg_DevOnOff(NODEID_GATEWAY, NODEID_MIN_REMOTE);
-    bMsgReady = 1;
     break;
     
   case 2:
     // send current brigntness status
     Msg_DevBrightness(NODEID_GATEWAY, NODEID_MIN_REMOTE);
-    bMsgReady = 1;
     break;
   }
   
-  if( bMsgReady ) Delay(0x1FF);
+  if( bMsgReady ) delay_10us(20);
 }
 
 // Gradually turn on or off
@@ -718,7 +728,8 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
   if(RF24L01_is_data_available()) {
     //Packet was received
     RF24L01_clear_interrupts();
-    mutex = 1;
+    RF24L01_read_payload(pMsg, PLOAD_WIDTH);
+    bMsgReady = ParseProtocol();
     return;
   }
  
