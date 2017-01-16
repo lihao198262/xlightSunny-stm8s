@@ -36,16 +36,13 @@
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_spi.h</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim1.h</name>
-      </file>
-      <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim2.h</name>
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim3.h</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim4.h</name>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_uart2.h</name>
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_wwdg.h</name>
@@ -69,16 +66,13 @@
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_spi.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim1.c</name>
-      </file>
-      <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim2.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim3.c</name>
       </file>
       <file>
-        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim4.c</name>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_uart2.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_wwdg.c</name>
@@ -113,6 +107,9 @@
       <file>
         <name>$PROJ_DIR$\Project\inc\stm8s_it.h</name>
       </file>
+      <file>
+        <name>$PROJ_DIR$\Project\inc\Uart2Dev.h</name>
+      </file>
     </group>
     <group>
       <name>src</name>
@@ -130,6 +127,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\rf24l01.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\Uart2Dev.c</name>
       </file>
     </group>
   </group>

@@ -4,6 +4,7 @@
 #include "MyMessage.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
+//#include "Uart2Dev.h"
 
 /*
 License: MIT
@@ -28,10 +29,26 @@ Connections:
   PC2 -> IRQ
 
 */
+
 // Xlight Application Identification
 #define XLA_VERSION               0x01
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
-#define XLA_PRODUCT_NAME          "XSunny"                  // Default value. Read from EEPROM
+// Choose Product Name & Type
+/// Sunny
+#if defined(XSUNNY)
+#define XLA_PRODUCT_NAME          "XSunny"
+#define XLA_PRODUCT_Type          devtypWRing3
+#endif
+/// Rainbow
+#if defined(XRAINBOW)
+#define XLA_PRODUCT_NAME          "XRainbow"
+#define XLA_PRODUCT_Type          devtypCRing3
+#endif
+/// Mirage
+#if defined(XMIRAGE)
+#define XLA_PRODUCT_NAME          "XMirage"
+#define XLA_PRODUCT_Type          devtypMRing3
+#endif
 
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		71
@@ -39,6 +56,8 @@ Connections:
 #define PLOAD_WIDTH                     32
 
 // Window Watchdog
+// Uncomment this line if in debug mode
+#define DEBUG_NO_WWDG
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
@@ -76,14 +95,20 @@ uint8_t tx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
 
+// USART
+uint8_t USART_ReceiveDataBuf[32];
+uint8_t Buff_Cnt;
+uint8_t USART_FLAG;
+uint8_t RX_TX_BUFF = 0;
+
 // Delayed operation in function idleProcess()
-typedef void (*OnTick_t)(uint16_t, uint8_t);  // Operation callback function typedef
+typedef void (*OnTick_t)(uint32_t, uint8_t);  // Operation callback function typedef
 // func bits
 uint8_t delay_func = 0x00;
 bool delay_up[DELAY_TIMERS];
-uint16_t delay_from[DELAY_TIMERS];
-uint16_t delay_to[DELAY_TIMERS];
-uint16_t delay_step[DELAY_TIMERS];
+uint32_t delay_from[DELAY_TIMERS];
+uint32_t delay_to[DELAY_TIMERS];
+uint32_t delay_step[DELAY_TIMERS];
 uint32_t delay_tick[DELAY_TIMERS];
 uint32_t delay_timer[DELAY_TIMERS];
 OnTick_t delay_handler[DELAY_TIMERS];
@@ -91,15 +116,19 @@ uint8_t delay_tag[DELAY_TIMERS];
 
 // Initialize Window Watchdog
 void wwdg_init() {
+#ifndef DEBUG_NO_WWDG  
   WWDG_Init(WWDG_COUNTER, WWDG_WINDOW);
+#endif  
 }
 
 // Feed the Window Watchdog
 void feed_wwdg(void) {
+#ifndef DEBUG_NO_WWDG    
   uint8_t cntValue = WWDG_GetCounter() & WWDG_COUNTER;
   if( cntValue < WWDG_WINDOW ) {
     WWDG_SetCounter(WWDG_COUNTER);
   }
+#endif  
 }
 
 void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
@@ -160,17 +189,20 @@ void LoadConfig()
 {
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-    if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || DEVST_WarmCold< CT_MIN_VALUE 
-       || DEVST_WarmCold > CT_MAX_VALUE || gConfig.rfPowerLevel > RF24_PA_MAX 
+    if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
        || IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       InitNodeAddress();
       gConfig.present = 0;
-      gConfig.type = devtypWRing3;
+      gConfig.type = XLA_PRODUCT_Type;
       gConfig.ring[0].State = 1;
       gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+#if defined(XSUNNY)      
       gConfig.ring[0].CCT = CT_MIN_VALUE;
+#else
+      gConfig.ring[0].CCT = 0;
+#endif      
       gConfig.ring[0].R = 0;
       gConfig.ring[0].G = 0;
       gConfig.ring[0].B = 0;
@@ -254,6 +286,8 @@ bool SendMyMessage() {
 
 void GotNodeID() {
   mGotNodeID = TRUE;
+  UpdateNodeAddress();
+  SaveConfig();
 }
 
 void GotPresented() {
@@ -267,15 +301,16 @@ bool SayHelloToDevice(bool infinate) {
 
   // Update RF addresses and Setup RF environment
   UpdateNodeAddress();
-  
-  if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
-    mStatus = SYS_WAIT_NODEID;
-  } else {
-    mStatus = SYS_WAIT_PRESENTED;
-  }
 
   while(1) {
     if( _count++ == 0 ) {
+      
+      if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+        mStatus = SYS_WAIT_NODEID;
+      } else {
+        mStatus = SYS_WAIT_PRESENTED;
+      }
+      
       _doNow = FALSE;
       if( mStatus == SYS_WAIT_NODEID ) {
         // Request for NodeID
@@ -297,7 +332,6 @@ bool SayHelloToDevice(bool infinate) {
           // Feed the Watchdog
           feed_wwdg();
           if( mStatus == SYS_WAIT_NODEID && mGotNodeID ) {
-            UpdateNodeAddress();
             mStatus = SYS_WAIT_PRESENTED;
             _presentCnt = 0;
             _doNow = TRUE;
@@ -332,7 +366,7 @@ bool SayHelloToDevice(bool infinate) {
     feed_wwdg();
     
     // Failed or Timeout, then repeat init-step
-    delay_ms(500);
+    delay_ms(400);
     _count %= 20;  // Every 10 seconds
   }
   
@@ -342,17 +376,21 @@ bool SayHelloToDevice(bool infinate) {
 int main( void ) {
     
   //After reset, the device restarts by default with the HSI clock divided by 8.
+  //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
   CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV1);  // now: HSI=16M prescale = 1; sysclk = 16M
   //CLK_SYSCLKConfig(CLK_PRESCALER_HSIDIV2);  // now: HSI=16M prescale = 2; sysclk = 8M
-  
-  // Init CCT
+  //CLK_HSECmd(ENABLE);
+  // Init PWM Timers
   initTim2PWMFunction();
 
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
+  
+  // Init serial ports
+  uart2_config();
   
   while(1) {
     // Go on only if NRF chip is presented
@@ -370,7 +408,7 @@ int main( void ) {
       DEVST_OnOff = 0;      // Ensure to turn on the light at next step
       SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
       //delay_ms(1500);   // about 1.5 sec
-      WaitMutex(0x1FFFF); // use this line to bring the lights to target brightness
+      WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
 
       // Init Watchdog
       wwdg_init();
@@ -401,31 +439,144 @@ int main( void ) {
   }
 }
 
+#if defined(XSUNNY)
 // Immediately change brightness and cct
 void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
   CCT2ColdWarm(_sw ? _br : 0, _cct);
   
   if( gConfig.hasSiblingMCU ) {
-    // ToDo: ring individual control
-    // if( _ring == RING_ID_ALL ) { 
-    //    change ring one by one;
-    // } else {
-    //    change one specific ring
-    // }
+    // ring individual control
+    /*
+    uint8_t sendBuf[8];
+    sendBuf[0] = UART_CMD_CCT;
+    sendBuf[1] = pwm_Cold;
+    sendBuf[2] = pwm_Warm;
+    sendBuf[3] = '\n';
+    sendBuf[4] = '\0';
+    */
+    if( _ring == RING_ID_ALL ) { 
+      // change ring one by one
+      driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
+      //Uart2SendString(sendBuf);
+    } else if( _ring == RING_ID_1 ) {
+      // change one specific ring
+      driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
+    } else if( _ring == RING_ID_2 ) {
+      //Uart2SendString(sendBuf);
+    } else if( _ring == RING_ID_3 ) {
+    }
   } else {
     // Control all rings together
     driveColdWarmLightPwm(pwm_Cold, pwm_Warm);
   }
 }
+#endif
+
+#if defined(XRAINBOW) || defined(XMIRAGE)
+// Immediately change brightness and rgbw
+void ChangeDeviceStatus(bool _sw, uint8_t _br, uint32_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring) {
+  if(!_sw) {
+    _br = 0;
+  } else if(_br > 100) {
+    _br = 100;
+  }
+  
+  if( gConfig.hasSiblingMCU ) {
+    // ring individual control
+    /*
+    uint8_t sendBuf[8];
+    sendBuf[0] = UART_CMD_RGBW;
+    sendBuf[1] = _br;
+    sendBuf[2] = _r;
+    sendBuf[3] = _g;
+    sendBuf[4] = _b;
+    sendBuf[5] = _w;
+    sendBuf[6] = '\n';
+    sendBuf[7] = '\0';
+    */
+    if( _ring == RING_ID_ALL ) { 
+      // change ring one by one
+      LightRGBWBRCtrl(_r, _g, _b, _w, _br);
+      //Uart2SendString(sendBuf);
+    } else if( _ring == RING_ID_1 ) {
+      // change one specific ring
+      LightRGBWBRCtrl(_r, _g, _b, _w, _br);
+    } else if( _ring == RING_ID_2 ) {
+      //Uart2SendString(sendBuf);
+    } else if( _ring == RING_ID_3 ) {
+    }
+  } else {
+    // Control all rings together
+    LightRGBWBRCtrl(_r, _g, _b, _w, _br);
+  }
+}
+#endif
 
 // Immediately change brightness
-void ChangeDeviceBR(uint16_t _br, uint8_t _ring) {
+void ChangeDeviceBR(uint32_t _br, uint8_t _ring) {
+#ifdef RING_INDIVIDUAL_COLOR
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+#if defined(XSUNNY)
+  ChangeDeviceStatus(TRUE, (uint8_t)_br, RINGST_WarmCold(r_index), _ring);
+#endif
+#if defined(XRAINBOW) || defined(XMIRAGE)
+  ChangeDeviceStatus(TRUE, (uint8_t)_br, RINGST_W(r_index), RINGST_R(r_index), RINGST_G(r_index), RINGST_B(r_index), _ring);
+#endif
+#else
+#if defined(XSUNNY)
   ChangeDeviceStatus(TRUE, (uint8_t)_br, DEVST_WarmCold, _ring);
+#endif
+#if defined(XRAINBOW) || defined(XMIRAGE)
+  ChangeDeviceStatus(TRUE, (uint8_t)_br, DEVST_W, DEVST_R, DEVST_G, DEVST_B, _ring);
+#endif
+#endif
 }
 
 // Immediately change cct
-void ChangeDeviceCCT(uint16_t _cct, uint8_t _ring) {
-  ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, _cct, _ring);
+void ChangeDeviceCCT(uint32_t _cct, uint8_t _ring) {
+#ifdef RING_INDIVIDUAL_COLOR
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+#if defined(XSUNNY)
+  ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), (uint16_t)_cct, _ring);
+#endif
+#if defined(XRAINBOW) || defined(XMIRAGE)
+  // ToDo: calcualte RGB from Warm White
+  ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), (uint8_t)_cct, RINGST_R(r_index), RINGST_G(r_index), RINGST_B(r_index), _ring);
+#endif
+#else
+#if defined(XSUNNY)
+  ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, (uint16_t)_cct, _ring);
+#endif
+#if defined(XRAINBOW) || defined(XMIRAGE)
+  // ToDo: calcualte RGB from Warm White
+  uint8_t _w, _r, _g, _b;
+  ConvertCCT2RGBW(_cct, &_r, &_g, &_b, &_w);
+  ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, _w, _r, _g, _b, _ring);
+#endif
+#endif
+}
+
+// Immediately change wrgb
+void ChangeDeviceWRGB(uint32_t _wrgb, uint8_t _ring) {
+  uint8_t _w, _r, _g, _b;
+  _b = (_wrgb & 0xff);
+  _wrgb >>= 8;
+  _g = (_wrgb & 0xff);
+  _wrgb >>= 8;
+  _r = (_wrgb & 0xff);
+  _wrgb >>= 8;
+  _w = (_wrgb & 0xff);
+  
+#ifdef RING_INDIVIDUAL_COLOR
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+#if defined(XRAINBOW) || defined(XMIRAGE)
+  ChangeDeviceStatus(TRUE, RINGST_Bright(r_index), _w, _r, _g, _b, _ring);
+#endif
+#else
+#if defined(XRAINBOW) || defined(XMIRAGE)
+  ChangeDeviceStatus(TRUE, DEVST_Bright, _w, _r, _g, _b, _ring);
+#endif
+#endif
 }
 
 void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
@@ -675,8 +826,123 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
     delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
     delay_tag[DELAY_TIM_CCT] = _ring;
     BF_SET(delay_func, 1, DELAY_TIM_CCT, 1); // Enable CCT Dimmer operation
-#else    
+#else
+#if defined(XSUNNY)
     ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold, _ring);
+#endif    
+#if defined(XRAINBOW) || defined(XMIRAGE)
+    ChangeDeviceCCT(DEVST_WarmCold, _ring);
+#endif    
+#endif
+    
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
+#endif
+  
+  return FALSE;
+}
+
+// Gradually change WRGB
+bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring) {
+  
+#ifdef RING_INDIVIDUAL_COLOR
+  
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+  if( _w != RINGST_W(r_index) || _r != RINGST_R(r_index) || _g != RINGST_G(r_index) || _b != RINGST_B(r_index) ) {
+#ifdef GRADUAL_RGB    
+    // Smoothly change RGBW - set parameters
+    delay_from[DELAY_TIM_RGB] = RINGST_W(r_index);
+    delay_from[DELAY_TIM_RGB] <<= 8;
+    delay_from[DELAY_TIM_RGB] += RINGST_R(r_index);
+    delay_from[DELAY_TIM_RGB] <<= 8;
+    delay_from[DELAY_TIM_RGB] += RINGST_G(r_index);
+    delay_from[DELAY_TIM_RGB] <<= 8;
+    delay_from[DELAY_TIM_RGB] += RINGST_B(r_index);
+    delay_to[DELAY_TIM_RGB] = _w;
+    delay_to[DELAY_TIM_RGB] <<= 8;
+    delay_to[DELAY_TIM_RGB] += _r;
+    delay_to[DELAY_TIM_RGB] <<= 8;
+    delay_to[DELAY_TIM_RGB] += _g;
+    delay_to[DELAY_TIM_RGB] <<= 8;
+    delay_to[DELAY_TIM_RGB] += _b;    
+    delay_up[DELAY_TIM_RGB] = (delay_from[DELAY_TIM_RGB] < delay_to[DELAY_TIM_RGB]);
+    delay_step[DELAY_TIM_RGB] = RGB_STEP;
+    
+#endif
+    
+    RINGST_W(r_index) = _w;
+    RINGST_R(r_index) = _r;
+    RINGST_G(r_index) = _g;
+    RINGST_B(r_index) = _b;
+    
+#ifdef GRADUAL_RGB
+    // Smoothly change RGBW - set timer
+    delay_timer[DELAY_TIM_RGB] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_RGB] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
+    delay_tag[DELAY_TIM_RGB] = _ring;
+    BF_SET(delay_func, 1, DELAY_TIM_RGB, 1); // Enable RGB Dimmer operation
+#else    
+    uint32_t newValue = _w;
+    newValue <<= 8;
+    newValue += _r;
+    newValue <<= 8;
+    newValue += _g;
+    newValue <<= 8;
+    newValue += _b;
+    ChangeDeviceWRGB(newValue, _ring);
+#endif
+    
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  
+#else
+  
+  if( _w != DEVST_W || _r != DEVST_R || _g != DEVST_G || _b != DEVST_B ) {
+#ifdef GRADUAL_RGB    
+    // Smoothly change RGBW - set parameters
+    delay_from[DELAY_TIM_RGB] = DEVST_W;
+    delay_from[DELAY_TIM_RGB] <<= 8;
+    delay_from[DELAY_TIM_RGB] += DEVST_R;
+    delay_from[DELAY_TIM_RGB] <<= 8;
+    delay_from[DELAY_TIM_RGB] += DEVST_G;
+    delay_from[DELAY_TIM_RGB] <<= 8;
+    delay_from[DELAY_TIM_RGB] += DEVST_B;
+    delay_to[DELAY_TIM_RGB] = _w;
+    delay_to[DELAY_TIM_RGB] <<= 8;
+    delay_to[DELAY_TIM_RGB] += _r;
+    delay_to[DELAY_TIM_RGB] <<= 8;
+    delay_to[DELAY_TIM_RGB] += _g;
+    delay_to[DELAY_TIM_RGB] <<= 8;
+    delay_to[DELAY_TIM_RGB] += _b;
+    delay_up[DELAY_TIM_RGB] = (delay_from[DELAY_TIM_RGB] < delay_to[DELAY_TIM_RGB]);
+    delay_step[DELAY_TIM_RGB] = RGB_STEP;
+#endif
+    
+    DEVST_W = _w;
+    DEVST_R = _r;
+    DEVST_G = _g;
+    DEVST_B = _b;
+    
+#ifdef GRADUAL_RGB
+    // Smoothly change RGBW - set timer
+    delay_timer[DELAY_TIM_RGB] = 0x1FF;  // about 5ms
+    delay_tick[DELAY_TIM_RGB] = 0;      // execute next step right away
+    delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
+    delay_tag[DELAY_TIM_RGB] = _ring;
+    BF_SET(delay_func, 1, DELAY_TIM_RGB, 1); // Enable RGB Dimmer operation
+#else
+    uint32_t newValue = _w;
+    newValue <<= 8;
+    newValue += _r;
+    newValue <<= 8;
+    newValue += _g;
+    newValue <<= 8;
+    newValue += _b;
+    ChangeDeviceWRGB(newValue, _ring);
 #endif
     
     gIsChanged = TRUE;
@@ -707,11 +973,10 @@ bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
     RINGST_WarmCold(0) = _cct;
     RINGST_WarmCold(1) = _cct;
     RINGST_WarmCold(2) = _cct;
-  } else
-  {
-    RINGST_OnOff(_ring-1) = _sw;
-    RINGST_Bright(_ring-1) = _br;
-    RINGST_WarmCold(_ring-1) = _cct;
+  } else {
+    RINGST_OnOff(r_index) = _sw;
+    RINGST_Bright(r_index) = _br;
+    RINGST_WarmCold(r_index) = _cct;
   }
   
   if( _sw != oldSW ) {
@@ -749,17 +1014,127 @@ bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring) {
 #endif  
 }
 
+// Gradually change on/off, brightness and rgbw in one
+bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring) {
+#ifdef RING_INDIVIDUAL_COLOR
+  
+  uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
+  uint8_t oldSW = RINGST_OnOff(r_index);
+  uint8_t oldBR = RINGST_Bright(r_index);
+  uint8_t oldW = RINGST_W(r_index);
+  uint8_t oldR = RINGST_R(r_index);
+  uint8_t oldG = RINGST_G(r_index);
+  uint8_t oldB = RINGST_B(r_index);
+  
+  if( _ring == RING_ID_ALL ) {
+    RINGST_OnOff(0) = _sw;
+    RINGST_OnOff(1) = _sw;
+    RINGST_OnOff(2) = _sw;
+    RINGST_Bright(0) = _br;
+    RINGST_Bright(1) = _br;
+    RINGST_Bright(2) = _br;
+    RINGST_W(0) = _w;
+    RINGST_W(1) = _w;
+    RINGST_W(2) = _w;
+    RINGST_R(0) = _r;
+    RINGST_R(1) = _r;
+    RINGST_R(2) = _r;
+    RINGST_G(0) = _g;
+    RINGST_G(1) = _g;
+    RINGST_G(2) = _g;
+    RINGST_B(0) = _b;
+    RINGST_B(1) = _b;
+    RINGST_B(2) = _b;
+  } else {
+    RINGST_OnOff(r_index) = _sw;
+    RINGST_Bright(r_index) = _br;
+    RINGST_W(r_index) = _w;
+    RINGST_R(r_index) = _r;
+    RINGST_G(r_index) = _g;
+    RINGST_B(r_index) = _b;
+  }
+  
+  if( _sw != oldSW ) {
+    RINGST_OnOff(r_index) = oldSW;
+    SetDeviceOnOff(_sw, _ring);
+    return TRUE;
+  }
+  
+  if( _br != oldBR ) {
+    RINGST_Bright(r_index) = oldBR;
+    SetDeviceBrightness(_br, _ring);
+    return TRUE;    
+  }
+
+  RINGST_W(r_index) = oldW;
+  RINGST_R(r_index) = oldR;
+  RINGST_G(r_index) = oldG;
+  RINGST_B(r_index) = oldB;
+  return SetDeviceWRGB(_w, _r, _g, _b, _ring);
+
+#else  
+  
+  if( _sw != DEVST_OnOff ) {
+    DEVST_Bright = _br;
+    DEVST_W = _w;
+    DEVST_R = _r;
+    DEVST_G = _g;
+    DEVST_B = _b;
+    SetDeviceOnOff(_sw, _ring);
+    return TRUE;
+  }
+  
+  if( _br != DEVST_Bright ) {
+    DEVST_W = _w;
+    DEVST_R = _r;
+    DEVST_G = _g;
+    DEVST_B = _b;
+    SetDeviceBrightness(_br, _ring);
+    return TRUE;    
+  }
+  
+  return SetDeviceWRGB(_w, _r, _g, _b, _ring);
+  
+#endif  
+}
+
 bool isTimerCompleted(uint8_t _tmr) {
   bool bFinished;
   
-  if( delay_up[_tmr] ) {
-    // Up
-    delay_from[_tmr] += delay_step[_tmr];
-    bFinished = ( delay_from[_tmr] >= delay_to[_tmr] );
+  if( _tmr == DELAY_TIM_RGB ) {
+    uint32_t from_value, to_value, new_value;
+    uint8_t color1, color2;
+    from_value = delay_from[DELAY_TIM_RGB];
+    to_value = delay_to[DELAY_TIM_RGB];
+    new_value = 0;
+    for( uint8_t i = 0; i < 4; i++ ) {
+      color1 = (from_value & 0xFF);
+      color2 = (to_value & 0xFF);
+      if( color1 > color2 ) {
+        color1 -= delay_step[DELAY_TIM_RGB];
+        if( color1 < color2 ) color1 = color2;
+      } else if( color1 < color2 ) {
+        color1 += delay_step[DELAY_TIM_RGB];
+        if( color1 > color2 ) color1 = color2;
+      }
+      uint32_t temp = color1;
+      temp <<= (i * 8);
+      new_value += temp;
+      from_value >>= 8;
+      to_value >>= 8;
+    }
+    delay_from[DELAY_TIM_RGB] = new_value;
+    bFinished = ( delay_from[_tmr] == delay_to[_tmr] );
   } else {
-    // Down
-    delay_from[_tmr] -= delay_step[_tmr];
-    bFinished = ( delay_from[_tmr] <= delay_to[_tmr] );
+    if( delay_up[_tmr] ) {
+      // Up
+      delay_from[_tmr] += delay_step[_tmr];
+      bFinished = ( delay_from[_tmr] >= delay_to[_tmr] );
+    } else {
+      // Down
+      delay_from[_tmr] -= delay_step[_tmr];
+      bFinished = ( delay_from[_tmr] <= delay_to[_tmr] );
+    }
   }
   
   // Execute operation
@@ -817,4 +1192,21 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
   }
 
    RF24L01_clear_interrupts();
+}
+
+INTERRUPT_HANDLER(UART2_RX_IRQHandler, 18)
+{
+  /* In order to detect unexpected events during development,
+  it is recommended to set a breakpoint on the following instruction.
+  */
+  if(UART2_GetITStatus(UART2_IT_RXNE) == SET) {
+    RX_TX_BUFF = UART2_ReceiveData8();
+    
+    USART_ReceiveDataBuf[Buff_Cnt++] = RX_TX_BUFF ;
+    if(RX_TX_BUFF == '\n') {
+      USART_FLAG = 1;
+      UART2_ClearITPendingBit(UART2_IT_RXNE);
+    }
+  }
+  //Buff_Cnt++;
 }

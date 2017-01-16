@@ -28,13 +28,14 @@ void callbackTim3EventCC (void);
 void initExternalPwmCaptureFunction (void);
 void initTim2PWMFunction (void);
 
-void regulateWarmLightPulseWidth (unsigned char ucPercent);
-void regulateColdLightPulseWidth (unsigned char ucPercent);
-
-void configureTIM1PwmCapture (TIM1_Channel_TypeDef TIM1_Channel);
 void driveColdWarmLightPwm (unsigned char ucCold, unsigned char ucWarm);
 
-void captureExtPwmParamRecognition (void);
+void LightRGBWBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WValue, uint8_t BRPercent);
+void LightRGBBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t BRPercent);
+
+#if defined(XRAINBOW) || defined(XMIRAGE)
+void ConvertCCT2RGBW(uint16_t CCTValue, uint8_t *RValue, uint8_t *GValue, uint8_t *BValue, uint8_t *WValue);
+#endif
 
 #endif
 /******************* (C) COPYRIGHT 2016 Eastfield Lighting *****END OF FILE****/

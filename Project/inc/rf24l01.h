@@ -202,6 +202,6 @@ void RF24L01_write_payload(uint8_t *data, uint8_t length);
 void RF24L01_read_buf(uint8_t reg, uint8_t *data, uint8_t length);
 void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t length);
 void RF24L01_clear_interrupts(void);
-//void RF24L01_show_registers(void);
+void RF24L01_show_registers(void);
 
 #endif

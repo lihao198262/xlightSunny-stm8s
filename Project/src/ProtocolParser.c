@@ -165,7 +165,12 @@ uint8_t ParseProtocol(){
             gIsChanged = TRUE;
           }
         } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
-          // ToDo: Set RGBW
+          // Set RGBW
+          if( _OnOff != RINGST_OnOff(r_index) || _Brightness != RINGST_Bright(r_index) || msg.payload.data[3] != RINGST_W(r_index) 
+             || msg.payload.data[4] != RINGST_R(r_index) || msg.payload.data[5] != RINGST_G(r_index) || msg.payload.data[6] != RINGST_B(r_index) ) {
+            SetDeviceHue(_OnOff, _Brightness, msg.payload.data[3], msg.payload.data[4], msg.payload.data[5], msg.payload.data[6], _RingID);
+            gIsChanged = TRUE;
+          }
         }
         if( _needAck ) {
           Msg_DevStatus(_sender, _sensor, _RingID);

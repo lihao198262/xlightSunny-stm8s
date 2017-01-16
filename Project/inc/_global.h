@@ -26,6 +26,12 @@
 #define OPERATOR_MUL                3
 #define OPERATOR_DIV                4
 
+// Serial Command
+#define UART_CMD_HELLO                  0
+#define UART_CMD_CCT                    1
+#define UART_CMD_RGBW                   2
+#define UART_CMD_HELLO_ACK              16
+
 // Node type
 #define NODE_TYP_GW               'g'
 #define NODE_TYP_LAMP             'l'
@@ -64,9 +70,11 @@
 // Comment off the line to disable gradual brightness on or off
 #define GRADUAL_ONOFF
 #define GRADUAL_CCT
+//#define GRADUAL_RGB
 #define DEFAULT_BRIGHTNESS      65
 #define BRIGHTNESS_STEP         1
 #define CCT_STEP                50
+#define RGB_STEP                3
 
 // Whether allow individual color control of ring
 /// Uncomment this line only if hardware supports
@@ -88,17 +96,6 @@ typedef enum
   devtypMRing1,
   devtypDummy = 255
 } devicetype_t;
-
-
-// Remote type
-typedef enum
-{
-  remotetypUnknown = 0,
-  remotetypRFSimply,
-  remotetypRFStandard,
-  remotetypRFEnhanced,
-  remotetypDummy
-} remotetype_t;
 
 typedef struct
 {
@@ -139,17 +136,19 @@ extern uint16_t pwm_Cold;
 void GotNodeID();
 void GotPresented();
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);
-void ChangeDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceOnOff(bool _sw, uint8_t _ring);
 bool SetDeviceBrightness(uint8_t _br, uint8_t _ring);
 bool SetDeviceCCT(uint16_t _cct, uint8_t _ring);
+bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
+bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 uint8_t idleProcess();
 
 // All rings or the first ring
 #define DEVST_OnOff             gConfig.ring[0].State
 #define DEVST_Bright            gConfig.ring[0].BR
 #define DEVST_WarmCold          gConfig.ring[0].CCT
+#define DEVST_W                 gConfig.ring[0].CCT
 #define DEVST_R                 gConfig.ring[0].R
 #define DEVST_G                 gConfig.ring[0].G
 #define DEVST_B                 gConfig.ring[0].B
@@ -163,6 +162,7 @@ uint8_t idleProcess();
 #define RINGST_OnOff(rid)       gConfig.ring[(rid)].State
 #define RINGST_Bright(rid)      gConfig.ring[(rid)].BR
 #define RINGST_WarmCold(rid)    gConfig.ring[(rid)].CCT
+#define RINGST_W(rid)           gConfig.ring[(rid)].CCT
 #define RINGST_R(rid)           gConfig.ring[(rid)].R
 #define RINGST_G(rid)           gConfig.ring[(rid)].G
 #define RINGST_B(rid)           gConfig.ring[(rid)].B
