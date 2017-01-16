@@ -40,7 +40,7 @@
           
           
           
-        <item>mutex</item><item>gConfig</item><item>msg</item><item>nState</item><item>nConfig</item><item>nRFCH</item><item>nSetup</item><item>n1D</item><item>n1C</item><item>strOutput</item><item>pMsg[1]</item><item>payload</item><item>_uniqueID</item><item>DEVST_WarmCold</item><item>gConfig.ring1.State</item><item>gConfig.ring1.BR</item><item>delay_from[0]</item><item>delay_to[0]</item><item>delay_up[0]</item><item>WValue</item><item></item></expressions>
+        <item>mutex</item><item>gConfig</item><item>msg</item><item>nState</item><item>nConfig</item><item>nRFCH</item><item>nSetup</item><item>n1D</item><item>n1C</item><item>strOutput</item><item>pMsg[1]</item><item>payload</item><item>_uniqueID</item><item>DEVST_WarmCold</item><item>gConfig.ring1.State</item><item>gConfig.ring1.BR</item><item>delay_from[0]</item><item>delay_to[0]</item><item>delay_up[0]</item><item>WValue</item><item/></expressions>
         <col-names>
           
           

@@ -105,6 +105,7 @@ typedef struct
   UC R                        :8;           // Brightness of red
   UC G                        :8;           // Brightness of green
   UC B                        :8;           // Brightness of blue
+  UC W                        :8;           // Brightness of white
   UC L1                       :8;           // Length of thread 1
   UC L2                       :8;           // Length of thread 2
   UC L3                       :8;           // Length of thread 3
@@ -148,10 +149,10 @@ uint8_t idleProcess();
 #define DEVST_OnOff             gConfig.ring[0].State
 #define DEVST_Bright            gConfig.ring[0].BR
 #define DEVST_WarmCold          gConfig.ring[0].CCT
-#define DEVST_W                 gConfig.ring[0].CCT
 #define DEVST_R                 gConfig.ring[0].R
 #define DEVST_G                 gConfig.ring[0].G
 #define DEVST_B                 gConfig.ring[0].B
+#define DEVST_W                 gConfig.ring[0].W
 
 #define RING_ID_ALL             0
 #define RING_ID_1               1
@@ -162,10 +163,10 @@ uint8_t idleProcess();
 #define RINGST_OnOff(rid)       gConfig.ring[(rid)].State
 #define RINGST_Bright(rid)      gConfig.ring[(rid)].BR
 #define RINGST_WarmCold(rid)    gConfig.ring[(rid)].CCT
-#define RINGST_W(rid)           gConfig.ring[(rid)].CCT
 #define RINGST_R(rid)           gConfig.ring[(rid)].R
 #define RINGST_G(rid)           gConfig.ring[(rid)].G
 #define RINGST_B(rid)           gConfig.ring[(rid)].B
+#define RINGST_W(rid)           gConfig.ring[(rid)].W
 #define RINGST_L1(rid)          gConfig.ring[(rid)].L1
 #define RINGST_L2(rid)          gConfig.ring[(rid)].L2
 #define RINGST_L3(rid)          gConfig.ring[(rid)].L3

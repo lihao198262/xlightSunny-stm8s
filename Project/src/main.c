@@ -777,6 +777,12 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
 // Gradually change cct
 bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
   
+  if( _cct > CT_MAX_VALUE ) {
+    _cct = CT_MAX_VALUE;
+  } else if( _cct < CT_MIN_VALUE ) {
+    _cct = CT_MIN_VALUE;
+  }
+  
 #ifdef RING_INDIVIDUAL_COLOR
   
   uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
