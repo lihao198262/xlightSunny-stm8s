@@ -137,6 +137,12 @@ static void TIM2PWMFunction_Config(void)
   TIM3_OC2Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE, TIM3_OCPOLARITY_HIGH);
   TIM3_OC2PreloadConfig(ENABLE);
   
+  /* TIM2 Main Output Enable */
+  TIM2_ARRPreloadConfig(ENABLE);
+
+  /* TIM3 Main Output Enable */
+  TIM3_ARRPreloadConfig(ENABLE);
+  
   // TIM2 counter enable
   TIM2_Cmd(ENABLE);
 
@@ -202,6 +208,10 @@ void RGBWCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WValue)
   TIM2_SetCompare2(RValue);
   TIM3_SetCompare1(GValue);
   TIM3_SetCompare2(BValue);
+  //TIM2_OC1Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, WValue, TIM2_OCPOLARITY_HIGH);
+  //TIM2_OC2Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, RValue, TIM2_OCPOLARITY_HIGH);
+  //TIM3_OC1Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, GValue, TIM3_OCPOLARITY_HIGH);
+  //TIM3_OC2Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, BValue, TIM3_OCPOLARITY_HIGH);
 }
 
 void RGBCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue)
@@ -209,6 +219,9 @@ void RGBCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue)
   TIM2_SetCompare2(RValue);
   TIM3_SetCompare1(GValue);
   TIM3_SetCompare2(BValue);
+  //TIM2_OC2Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, RValue, TIM2_OCPOLARITY_HIGH);
+  //TIM3_OC1Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, GValue, TIM3_OCPOLARITY_HIGH);
+  //TIM3_OC2Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, BValue, TIM3_OCPOLARITY_HIGH);
 }
 #endif  
 

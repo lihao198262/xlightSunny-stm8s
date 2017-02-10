@@ -59,6 +59,10 @@
 
 #define UNIQUE_ID_LEN           8
 
+// Sensor reading duration
+#define SEN_READ_ALS            0xFFFF
+#define SEN_READ_PIR            0x1FFF
+
 // Delayed operation timers
 #define DELAY_TIMERS            8
 #define DELAY_TIM_ONOFF         0

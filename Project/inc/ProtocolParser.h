@@ -14,5 +14,6 @@ void Msg_DevBrightness(uint8_t _to, uint8_t _dest);
 void Msg_DevCCT(uint8_t _to, uint8_t _dest);
 void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring);
 void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring);
+void Msg_SenPIR(bool _sw);
 
 #endif /* __PROTOCOL_PARSER_H */

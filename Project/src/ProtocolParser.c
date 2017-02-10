@@ -45,7 +45,7 @@ uint8_t ParseProtocol(){
     break;
     
   case C_PRESENTATION:
-    if( _type == S_LIGHT ) {
+    if( _sensor == S_LIGHT ) {
       if( _isAck ) {
         // Device/client got Response to Presentation message, ready to work
         gConfig.token = msg.payload.uiValue;
@@ -207,7 +207,7 @@ void Msg_RequestNodeID() {
 
 // Prepare device presentation message
 void Msg_Presentation() {
-  build(NODEID_GATEWAY, gConfig.type, C_PRESENTATION, S_LIGHT, 1, 0);
+  build(NODEID_GATEWAY, S_LIGHT, C_PRESENTATION, gConfig.type, 1, 0);
   miSetPayloadType(P_ULONG32);
   miSetLength(UNIQUE_ID_LEN);
   memcpy(msg.payload.data, _uniqueID, UNIQUE_ID_LEN);
@@ -282,7 +282,7 @@ void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
       msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) % 256);
       msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) / 256);
     } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
-      msg.payload.data[payl_len++] = (uint8_t)(RINGST_WarmCold(r_index) % 256);
+      msg.payload.data[payl_len++] = RINGST_W(r_index);
       msg.payload.data[payl_len++] = RINGST_R(r_index);
       msg.payload.data[payl_len++] = RINGST_G(r_index);
       msg.payload.data[payl_len++] = RINGST_B(r_index);
@@ -347,5 +347,14 @@ void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   
   miSetLength(payl_len);
   miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
+}
+
+// Prepare PIR message
+void Msg_SenPIR(bool _sw) {
+  build(NODEID_GATEWAY, S_IR, C_PRESENTATION, V_STATUS, 0, 0);
+  miSetPayloadType(P_BYTE);
+  miSetLength(1);
+  msg.payload.data[0] = _sw;
   bMsgReady = 1;
 }

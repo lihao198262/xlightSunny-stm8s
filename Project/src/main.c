@@ -4,6 +4,7 @@
 #include "MyMessage.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
+#include "sen_pir.h"
 //#include "Uart2Dev.h"
 
 /*
@@ -190,7 +191,7 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) || gConfig.type != XLA_PRODUCT_Type ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       InitNodeAddress();
@@ -374,7 +375,10 @@ bool SayHelloToDevice(bool infinate) {
 }
 
 int main( void ) {
-    
+   static bool pre_pir_st = FALSE;
+   bool pir_st;
+   uint16_t pir_tick = 0;
+   
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
@@ -384,11 +388,15 @@ int main( void ) {
   // Init PWM Timers
   initTim2PWMFunction();
 
+  // Init sensors
+  //als_init();
+  pir_init();
+  
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
-  
+
   // Init serial ports
   uart2_config();
   
@@ -423,7 +431,22 @@ int main( void ) {
     while (mStatus == SYS_RUNNING) {
       // Feed the Watchdog
       feed_wwdg();
-
+      
+      // Read sensors
+      /// Read PIR
+      if( !bMsgReady && !pir_tick ) {
+        // Reset read timer
+        pir_tick = SEN_READ_PIR;
+        pir_st = pir_read();
+        if( pre_pir_st != pir_st ) {
+          // Send detection message
+          pre_pir_st = pir_st;
+          Msg_SenPIR(pre_pir_st);
+        }
+      } else if( pir_tick > 0 ) {
+        pir_tick--;
+      }
+      
       // Send message if ready
       SendMyMessage();
       
