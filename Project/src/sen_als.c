@@ -12,8 +12,12 @@ void als_init()
   GPIO_Init(ALS_DATA_PORT, ALS_DATA_PIN_ID, GPIO_MODE_IN_PU_NO_IT);
 }
 
-uint16_t als_read()
+// Convert to level: [0..100]
+uint8_t als_read()
 {
-  BitStatus pir_st = GPIO_ReadInputPin(ALS_DATA_PORT, ALS_DATA_PIN_ID);
-  return (bool)pir_st;
+  // From [0..1023]
+  uint16_t adc_value = ADC1_GetConversionValue();
+  // Scale down to [0..100]
+  uint8_t level = adc_value * 100 / 1023;
+  return level;
 }

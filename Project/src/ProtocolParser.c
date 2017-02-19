@@ -4,6 +4,7 @@
 #include "LightPwmDrv.h"
 
 uint8_t bMsgReady = 0;
+bool bDelaySend = FALSE;
 
 // Assemble message
 void build(uint8_t _destination, uint8_t _sensor, uint8_t _command, uint8_t _type, bool _enableAck, bool _isAck)
@@ -28,6 +29,7 @@ uint8_t ParseProtocol(){
   bool _needAck = (bool)miGetRequestAck();
   bool _isAck = (bool)miGetAck();
   
+  bDelaySend = FALSE;
   switch( _cmd ) {
   case C_INTERNAL:
     if( _type == I_ID_RESPONSE ) {
@@ -86,6 +88,7 @@ uint8_t ParseProtocol(){
         bool _OnOff = (msg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : msg.payload.bValue == DEVICE_SW_ON);
         SetDeviceOnOff(_OnOff, RING_ID_ALL);
         if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
           Msg_DevBrightness(_sender, _sensor);
           return 1;
         }
@@ -115,6 +118,7 @@ uint8_t ParseProtocol(){
         }
         SetDeviceBrightness(_Brightness, RING_ID_ALL);
         if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
           Msg_DevBrightness(_sender, _sensor);
           return 1;
         }
@@ -145,6 +149,7 @@ uint8_t ParseProtocol(){
         }
         SetDeviceCCT(_CCTValue, RING_ID_ALL);
         if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
           Msg_DevCCT(_sender, _sensor);
           return 1;
         }
@@ -173,6 +178,7 @@ uint8_t ParseProtocol(){
           }
         }
         if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
           Msg_DevStatus(_sender, _sensor, _RingID);
           return 1;
         }          
@@ -185,6 +191,7 @@ uint8_t ParseProtocol(){
           // ToDo: set Topology
         }
         if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
           Msg_DevTopology(_sender, _sensor, _RingID);
           return 1;
         }          
@@ -225,8 +232,6 @@ void Msg_DevOnOff(uint8_t _to, uint8_t _dest) {
 
 // Prepare device brightness message
 void Msg_DevBrightness(uint8_t _to, uint8_t _dest) {
-  uint8_t payl_len = 2;
-
   build(_to, _dest, C_REQ, V_PERCENTAGE, 0, 1);
   miSetLength(2);
   miSetPayloadType(P_BYTE);
@@ -237,8 +242,6 @@ void Msg_DevBrightness(uint8_t _to, uint8_t _dest) {
 
 // Prepare device CCT message
 void Msg_DevCCT(uint8_t _to, uint8_t _dest) {
-  uint8_t payl_len = 2;
-
   build(_to, _dest, C_REQ, V_LEVEL, 0, 1);
   miSetLength(2);
   miSetPayloadType(P_UINT16);
@@ -350,6 +353,18 @@ void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   bMsgReady = 1;
 }
 
+#ifdef EN_SENSOR_ALS
+// Prepare ALS message
+void Msg_SenALS(uint8_t _value) {
+  build(NODEID_GATEWAY, S_LIGHT_LEVEL, C_PRESENTATION, V_LIGHT_LEVEL, 0, 0);
+  miSetPayloadType(P_BYTE);
+  miSetLength(1);
+  msg.payload.data[0] = _value;
+  bMsgReady = 1;
+}
+#endif
+
+#ifdef EN_SENSOR_PIR
 // Prepare PIR message
 void Msg_SenPIR(bool _sw) {
   build(NODEID_GATEWAY, S_IR, C_PRESENTATION, V_STATUS, 0, 0);
@@ -358,3 +373,4 @@ void Msg_SenPIR(bool _sw) {
   msg.payload.data[0] = _sw;
   bMsgReady = 1;
 }
+#endif

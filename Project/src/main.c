@@ -4,8 +4,16 @@
 #include "MyMessage.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
+#include "Uart2Dev.h"
+
+#ifdef EN_SENSOR_ALS
+#include "ADC1Dev.h"
+#include "sen_als.h"
+#endif
+
+#ifdef EN_SENSOR_PIR
 #include "sen_pir.h"
-//#include "Uart2Dev.h"
+#endif
 
 /*
 License: MIT
@@ -266,6 +274,13 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
 // Send message and switch back to receive mode
 bool SendMyMessage() {
   if( bMsgReady ) {
+    
+    // delay to avoid conflict
+    if( bDelaySend ) {
+      delay_ms(gConfig.nodeID % 25 * 10);
+      bDelaySend = FALSE;
+    }
+
     mutex = 0;
     RF24L01_set_mode_TX();
     RF24L01_write_payload(pMsg, PLOAD_WIDTH);
@@ -375,9 +390,18 @@ bool SayHelloToDevice(bool infinate) {
 }
 
 int main( void ) {
+#ifdef EN_SENSOR_ALS
+   static uint8_t pre_als_value = 0;
+   uint8_t als_value;
+   uint16_t als_tick = 0;
+#endif
+
+#ifdef EN_SENSOR_PIR
    static bool pre_pir_st = FALSE;
    bool pir_st;
    uint16_t pir_tick = 0;
+#endif
+   
    
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
@@ -389,14 +413,23 @@ int main( void ) {
   initTim2PWMFunction();
 
   // Init sensors
-  //als_init();
+#ifdef EN_SENSOR_ALS  
+  als_init();
+#endif
+#ifdef EN_SENSOR_PIR
   pir_init();
+#endif  
   
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
 
+  // Init ADC
+#ifdef EN_SENSOR_ALS  
+  ADC1_Config();
+#endif  
+  
   // Init serial ports
   uart2_config();
   
@@ -433,6 +466,7 @@ int main( void ) {
       feed_wwdg();
       
       // Read sensors
+#ifdef EN_SENSOR_PIR
       /// Read PIR
       if( !bMsgReady && !pir_tick ) {
         // Reset read timer
@@ -446,6 +480,23 @@ int main( void ) {
       } else if( pir_tick > 0 ) {
         pir_tick--;
       }
+#endif
+
+#ifdef EN_SENSOR_ALS
+      /// Read ALS
+      if( !bMsgReady && !als_tick ) {
+        // Reset read timer
+        als_tick = SEN_READ_ALS;
+        als_value = als_read();
+        if( pre_als_value != als_value ) {
+          // Send brightness message
+          pre_als_value = als_value;
+          Msg_SenALS(pre_als_value);
+        }
+      } else if( als_tick > 0 ) {
+        als_tick--;
+      }
+#endif
       
       // Send message if ready
       SendMyMessage();
