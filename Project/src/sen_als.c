@@ -15,9 +15,22 @@ void als_init()
 // Convert to level: [0..100]
 uint8_t als_read()
 {
-  // From [0..1023]
+  uint8_t level;
+  
+  // Wait convert finished
+  while(ADC1_GetFlagStatus(ADC1_FLAG_EOC) == RESET);
+  // Get value
   uint16_t adc_value = ADC1_GetConversionValue();
-  // Scale down to [0..100]
-  uint8_t level = adc_value * 100 / 1023;
+  // Clear flag
+  ADC1_ClearFlag(ADC1_FLAG_EOC);
+  // Start next conversion
+  ADC1_StartConversion();
+  
+  // [0..1023], reversed scale down to [100..0]
+  if( adc_value >= 1000 ) {
+    level = 0;
+  } else {
+    level = 100 - adc_value / 10;
+  }
   return level;
 }
