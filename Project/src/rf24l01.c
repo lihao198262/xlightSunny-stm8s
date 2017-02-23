@@ -215,7 +215,7 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
   *((uint8_t *)&SETUP_RETR) = 0;
   // 250um * (ARD + 1), [250um(0x00), 4000um(0x0f)]
   SETUP_RETR.ARD = rx_addr[0] % 14 + 2;    // [2..15]
-  SETUP_RETR.ARC = 0x05;
+  SETUP_RETR.ARC = 0x0f;
   RF24L01_write_register(RF24L01_reg_SETUP_RETR, ((uint8_t *)&SETUP_RETR), 1);  
 /*
   RF24L01_reg_DYNPD_content DYN_PAYLOAD;
