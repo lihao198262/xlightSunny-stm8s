@@ -21,6 +21,9 @@
     <group>
       <name>inc</name>
       <file>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_adc1.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_clk.h</name>
       </file>
       <file>
@@ -50,6 +53,9 @@
     </group>
     <group>
       <name>src</name>
+      <file>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_adc1.c</name>
+      </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_clk.c</name>
       </file>
@@ -87,6 +93,9 @@
         <name>$PROJ_DIR$\Project\inc\_global.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\ADC1Dev.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\delay.h</name>
       </file>
       <file>
@@ -102,6 +111,12 @@
         <name>$PROJ_DIR$\Project\inc\rf24l01.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\sen_als.h</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\inc\sen_pir.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\stm8s_conf.h</name>
       </file>
       <file>
@@ -113,6 +128,9 @@
     </group>
     <group>
       <name>src</name>
+      <file>
+        <name>$PROJ_DIR$\Project\src\ADC1Dev.c</name>
+      </file>
       <file>
         <name>$PROJ_DIR$\Project\src\delay.c</name>
       </file>
@@ -127,6 +145,12 @@
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\rf24l01.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\sen_als.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\sen_pir.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\Uart2Dev.c</name>

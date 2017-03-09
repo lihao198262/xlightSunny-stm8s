@@ -4,7 +4,16 @@
 #include "MyMessage.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
-//#include "Uart2Dev.h"
+#include "Uart2Dev.h"
+
+#ifdef EN_SENSOR_ALS
+#include "ADC1Dev.h"
+#include "sen_als.h"
+#endif
+
+#ifdef EN_SENSOR_PIR
+#include "sen_pir.h"
+#endif
 
 /*
 License: MIT
@@ -190,7 +199,7 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) || gConfig.type != XLA_PRODUCT_Type ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       InitNodeAddress();
@@ -222,7 +231,7 @@ void UpdateNodeAddress(void) {
   rx_addr[0] = gConfig.nodeID;
   memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
   tx_addr[0] = (gConfig.nodeID >= BASESERVICE_ADDRESS ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
-  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, 0);     // Without openning the boardcast pipe
+  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
 bool WaitMutex(uint32_t _timeout) {
@@ -265,6 +274,13 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
 // Send message and switch back to receive mode
 bool SendMyMessage() {
   if( bMsgReady ) {
+    
+    // delay to avoid conflict
+    if( bDelaySend ) {
+      delay_ms(gConfig.nodeID % 25 * 10);
+      bDelaySend = FALSE;
+    }
+
     mutex = 0;
     RF24L01_set_mode_TX();
     RF24L01_write_payload(pMsg, PLOAD_WIDTH);
@@ -374,7 +390,19 @@ bool SayHelloToDevice(bool infinate) {
 }
 
 int main( void ) {
-    
+#ifdef EN_SENSOR_ALS
+   static uint8_t pre_als_value = 0;
+   uint8_t als_value;
+   uint16_t als_tick = 0;
+#endif
+
+#ifdef EN_SENSOR_PIR
+   static bool pre_pir_st = FALSE;
+   bool pir_st;
+   uint16_t pir_tick = 0;
+#endif
+   
+   
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
@@ -384,10 +412,23 @@ int main( void ) {
   // Init PWM Timers
   initTim2PWMFunction();
 
+  // Init sensors
+#ifdef EN_SENSOR_ALS  
+  als_init();
+#endif
+#ifdef EN_SENSOR_PIR
+  pir_init();
+#endif  
+  
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
+
+  // Init ADC
+#ifdef EN_SENSOR_ALS  
+  ADC1_Config();
+#endif  
   
   // Init serial ports
   uart2_config();
@@ -423,7 +464,40 @@ int main( void ) {
     while (mStatus == SYS_RUNNING) {
       // Feed the Watchdog
       feed_wwdg();
+      
+      // Read sensors
+#ifdef EN_SENSOR_PIR
+      /// Read PIR
+      if( !bMsgReady && !pir_tick ) {
+        // Reset read timer
+        pir_tick = SEN_READ_PIR;
+        pir_st = pir_read();
+        if( pre_pir_st != pir_st ) {
+          // Send detection message
+          pre_pir_st = pir_st;
+          Msg_SenPIR(pre_pir_st);
+        }
+      } else if( pir_tick > 0 ) {
+        pir_tick--;
+      }
+#endif
 
+#ifdef EN_SENSOR_ALS
+      /// Read ALS
+      if( !bMsgReady && !als_tick ) {
+        // Reset read timer
+        als_tick = SEN_READ_ALS;
+        als_value = als_read();
+        if( pre_als_value != als_value ) {
+          // Send brightness message
+          pre_als_value = als_value;
+          Msg_SenALS(pre_als_value);
+        }
+      } else if( als_tick > 0 ) {
+        als_tick--;
+      }
+#endif
+      
       // Send message if ready
       SendMyMessage();
       

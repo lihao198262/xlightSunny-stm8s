@@ -4,6 +4,7 @@
 #include "_global.h"
 
 extern uint8_t bMsgReady;
+extern bool bDelaySend;
 
 uint8_t ParseProtocol();
 void build(uint8_t _destination, uint8_t _sensor, uint8_t _command, uint8_t _type, bool _enableAck, bool _isAck);
@@ -14,5 +15,13 @@ void Msg_DevBrightness(uint8_t _to, uint8_t _dest);
 void Msg_DevCCT(uint8_t _to, uint8_t _dest);
 void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring);
 void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring);
+
+#ifdef EN_SENSOR_ALS
+void Msg_SenALS(uint8_t _value);
+#endif
+
+#ifdef EN_SENSOR_PIR
+void Msg_SenPIR(bool _sw);
+#endif
 
 #endif /* __PROTOCOL_PARSER_H */

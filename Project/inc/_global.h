@@ -7,6 +7,13 @@
 #include "stm8s_conf.h"
 
 /* Exported types ------------------------------------------------------------*/
+// Include Sensors
+/// Comment off line to disable sensor
+//#define EN_SENSOR_ALS
+#define EN_SENSOR_PIR
+//#define EN_SENSOR_DHT
+//#define EN_SENSOR_MQ135
+
 // Common Data Type
 #define UC                        uint8_t
 #define US                        uint16_t
@@ -46,6 +53,8 @@
 #define NODEID_MAX_DEVCIE       63
 #define NODEID_MIN_REMOTE       64
 #define NODEID_MAX_REMOTE       127
+#define NODEID_PROJECTOR        128
+#define NODEID_SMARTPHONE       139
 #define NODEID_DUMMY            255
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
@@ -58,6 +67,10 @@
 #define LIGHT_PWM_THRESHOLD     5
 
 #define UNIQUE_ID_LEN           8
+
+// Sensor reading duration
+#define SEN_READ_ALS            0xFFFF
+#define SEN_READ_PIR            0x1FFF
 
 // Delayed operation timers
 #define DELAY_TIMERS            8
