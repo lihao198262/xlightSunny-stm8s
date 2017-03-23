@@ -39,9 +39,14 @@ Connections:
 
 */
 
+// Simple Direct Test
+// Uncomment this line to work in Simple Direct Test Mode
+//#define ENABLE_SDTM
+
 // Xlight Application Identification
 #define XLA_VERSION               0x01
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
+
 // Choose Product Name & Type
 /// Sunny
 #if defined(XSUNNY)
@@ -178,18 +183,41 @@ uint8_t *Read_UniqueID(uint8_t *UniqueID, uint16_t Length)
   return UniqueID;
 }
 
+bool isIdentityEmpty(const UC *pId, UC nLen)
+{
+  for( int i = 0; i < nLen; i++ ) { if(pId[i] > 0) return FALSE; }
+  return TRUE;
+}
+
+bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen)
+{
+  for( int i = 0; i < nLen; i++ ) { if(pId1[i] != pId2[i]) return FALSE; }
+  return TRUE;
+}
+
+bool isNodeIdRequired()
+{
+  return( (IS_NOT_DEVICE_NODEID(gConfig.nodeID) && !IS_GROUP_NODEID(gConfig.nodeID)) || 
+         isIdentityEmpty(gConfig.NetworkID, ADDRESS_WIDTH) || isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) );
+}
+
 // Save config to Flash
 void SaveConfig()
 {
+#ifndef ENABLE_SDTM  
   if( gIsChanged ) {
     Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     gIsChanged = FALSE;
   }
+#endif  
 }
 
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
 void InitNodeAddress() {
-  gConfig.nodeID = BASESERVICE_ADDRESS; // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
+  // Whether has preset node id
+  if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) && !IS_GROUP_NODEID(gConfig.nodeID) ) {
+    gConfig.nodeID = BASESERVICE_ADDRESS; // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
+  }
   memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
 }
 
@@ -199,7 +227,8 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) || gConfig.type != XLA_PRODUCT_Type ) {
+       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) || gConfig.type != XLA_PRODUCT_Type 
+       || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0 ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       InitNodeAddress();
@@ -227,11 +256,15 @@ void LoadConfig()
 }
 
 void UpdateNodeAddress(void) {
+#ifdef ENABLE_SDTM
+  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, 0);     // Without openning the boardcast pipe
+#else  
   memcpy(rx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
   rx_addr[0] = gConfig.nodeID;
   memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
-  tx_addr[0] = (gConfig.nodeID >= BASESERVICE_ADDRESS ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+  tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
   RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
+#endif  
 }
 
 bool WaitMutex(uint32_t _timeout) {
@@ -321,7 +354,7 @@ bool SayHelloToDevice(bool infinate) {
   while(1) {
     if( _count++ == 0 ) {
       
-      if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+      if( isNodeIdRequired() ) {
         mStatus = SYS_WAIT_NODEID;
       } else {
         mStatus = SYS_WAIT_PRESENTED;
@@ -458,8 +491,17 @@ int main( void ) {
     // IRQ
     NRF2401_EnableIRQ();
   
+#ifdef ENABLE_SDTM
+    gConfig.nodeID = 0x11;
+    UpdateNodeAddress();
+    Msg_DevStatus(0x11, 0x11, RING_ID_ALL);
+    SendMyMessage();
+    mStatus = SYS_RUNNING;
+#else  
     // Must establish connection firstly
     SayHelloToDevice(TRUE);
+#endif
+    
   
     while (mStatus == SYS_RUNNING) {
       // Feed the Watchdog

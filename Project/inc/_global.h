@@ -10,7 +10,7 @@
 // Include Sensors
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
-#define EN_SENSOR_PIR
+//#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
 
@@ -55,6 +55,8 @@
 #define NODEID_MAX_REMOTE       127
 #define NODEID_PROJECTOR        128
 #define NODEID_SMARTPHONE       139
+#define NODEID_MIN_GROUP        192
+#define NODEID_MAX_GROUP        223
 #define NODEID_DUMMY            255
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
@@ -127,7 +129,7 @@ typedef struct
 typedef struct
 {
   UC version                  :8;           // Data version, other than 0xFF
-  UC nodeID;                                // Remote Node ID
+  UC nodeID;                                // Node ID for this device
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
   UC reserved                 :7;
@@ -189,6 +191,7 @@ uint8_t idleProcess();
 #define IS_MIRAGE(DevType)          ((DevType) >= devtypMRing3 && (DevType) <= devtypMRing1)
 #define IS_VALID_REMOTE(DevType)    ((DevType) >= remotetypRFSimply && (DevType) <= remotetypRFEnhanced)
 
+#define IS_GROUP_NODEID(nID)       (nID >= NODEID_MIN_GROUP && nID <= NODEID_MAX_GROUP)
 #define IS_NOT_DEVICE_NODEID(nID)  ((nID < NODEID_MIN_DEVCIE || nID > NODEID_MAX_DEVCIE) && nID != NODEID_MAINDEVICE)
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 
