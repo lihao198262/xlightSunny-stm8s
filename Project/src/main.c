@@ -227,8 +227,8 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) || gConfig.type != XLA_PRODUCT_Type 
-       || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0 ) {
+       || gConfig.type != XLA_PRODUCT_Type 
+       || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       InitNodeAddress();
