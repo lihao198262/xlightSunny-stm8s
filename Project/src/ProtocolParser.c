@@ -2,6 +2,7 @@
 #include "_global.h"
 #include "MyMessage.h"
 #include "LightPwmDrv.h"
+#include "xliNodeConfig.h"
 
 uint8_t bMsgReady = 0;
 bool bDelaySend = FALSE;
@@ -43,7 +44,26 @@ uint8_t ParseProtocol(){
         GotNodeID();
         return 1;
       }
-    }    
+    } else if( _type == I_CONFIG ) {
+      // Node Config
+      switch( _sensor ) {
+      case NCF_MAP_SENSOR:
+        gConfig.senMap = msg.payload.uiValue;
+        gIsChanged = TRUE;
+        break;
+        
+      case NCF_MAP_FUNC:
+        gConfig.funcMap = msg.payload.uiValue;
+        gIsChanged = TRUE;
+        break;
+
+      case NCF_DATA_ALS_RANGE:
+        gConfig.alsLevel[0] = msg.payload.data[0];
+        gConfig.alsLevel[1] = msg.payload.data[1];
+        gIsChanged = TRUE;
+        break;
+      }
+    }
     break;
     
   case C_PRESENTATION:

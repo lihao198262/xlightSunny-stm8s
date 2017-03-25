@@ -9,8 +9,8 @@
 /* Exported types ------------------------------------------------------------*/
 // Include Sensors
 /// Comment off line to disable sensor
-//#define EN_SENSOR_ALS
-//#define EN_SENSOR_PIR
+#define EN_SENSOR_ALS
+#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
 
@@ -62,6 +62,7 @@
 #define BROADCAST_ADDRESS       0xFF
 
 #define BR_MIN_VALUE            1
+#define BR_STEP                 5
 #define CT_MIN_VALUE            2700
 #define CT_MAX_VALUE            6500
 #define CT_SCOPE                38    
@@ -141,6 +142,9 @@ typedef struct
   UC rfPowerLevel             :2;           // RF Power Level 0..3
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
   UC Reserved1                :5;           // Reserved bits
+  US senMap                   :16;          // Sensor Map
+  US funcMap                  :16;          // Function Map
+  UC alsLevel[2];
 } Config_t;
 
 extern Config_t gConfig;

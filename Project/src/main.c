@@ -2,6 +2,7 @@
 #include "delay.h"
 #include "rf24l01.h"
 #include "MyMessage.h"
+#include "xliNodeConfig.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
 #include "Uart2Dev.h"
@@ -250,6 +251,21 @@ void LoadConfig()
       gConfig.hasSiblingMCU = 0;
       sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
+      
+      gConfig.senMap = 0;
+#ifdef EN_SENSOR_ALS
+      gConfig.senMap |= sensorALS;
+#endif
+#ifdef EN_SENSOR_PIR
+      gConfig.senMap |= sensorPIR;
+#endif
+#ifdef EN_SENSOR_DHT
+      gConfig.senMap |= sensorDHT;
+#endif      
+      gConfig.funcMap = 0;
+      gConfig.alsLevel[0] = 70;
+      gConfig.alsLevel[1] = 90;
+
       gIsChanged = TRUE;
       SaveConfig();
     }
@@ -427,6 +443,7 @@ int main( void ) {
    static uint8_t pre_als_value = 0;
    uint8_t als_value;
    uint16_t als_tick = 0;
+   uint8_t lv_Brightness;
 #endif
 
 #ifdef EN_SENSOR_PIR
@@ -510,33 +527,57 @@ int main( void ) {
       // Read sensors
 #ifdef EN_SENSOR_PIR
       /// Read PIR
-      if( !bMsgReady && !pir_tick ) {
-        // Reset read timer
-        pir_tick = SEN_READ_PIR;
-        pir_st = pir_read();
-        if( pre_pir_st != pir_st ) {
-          // Send detection message
-          pre_pir_st = pir_st;
-          Msg_SenPIR(pre_pir_st);
+      if( gConfig.senMap & sensorPIR ) {
+        if( !bMsgReady && !pir_tick ) {
+          // Reset read timer
+          pir_tick = SEN_READ_PIR;
+          pir_st = pir_read();
+          if( pre_pir_st != pir_st ) {
+            // Send detection message
+            pre_pir_st = pir_st;
+            Msg_SenPIR(pre_pir_st);
+            // Action
+            if( gConfig.funcMap & controlPIR ) {
+              SetDeviceOnOff(pir_st, RING_ID_ALL);
+              Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+            }
+          }
+        } else if( pir_tick > 0 ) {
+          pir_tick--;
         }
-      } else if( pir_tick > 0 ) {
-        pir_tick--;
       }
 #endif
 
 #ifdef EN_SENSOR_ALS
       /// Read ALS
-      if( !bMsgReady && !als_tick ) {
-        // Reset read timer
-        als_tick = SEN_READ_ALS;
-        als_value = als_read();
-        if( pre_als_value != als_value ) {
-          // Send brightness message
-          pre_als_value = als_value;
-          Msg_SenALS(pre_als_value);
+      if( gConfig.senMap & sensorALS ) {
+        if( !bMsgReady && !als_tick ) {
+          // Reset read timer
+          als_tick = SEN_READ_ALS;
+          als_value = als_read();
+          if( pre_als_value != als_value ) {
+            // Send brightness message
+            pre_als_value = als_value;
+            Msg_SenALS(pre_als_value);
+            // Action
+            if( gConfig.funcMap & controlALS ) {
+              if( DEVST_OnOff ) {
+                lv_Brightness = 0;
+                if( DEVST_Bright < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
+                  lv_Brightness = DEVST_Bright + BR_STEP;
+                } else if( DEVST_Bright > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
+                  lv_Brightness = DEVST_Bright - BR_STEP;
+                }
+                if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
+                  SetDeviceBrightness(lv_Brightness, RING_ID_ALL);
+                  Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+                }
+              }
+            }
+          }
+        } else if( als_tick > 0 ) {
+          als_tick--;
         }
-      } else if( als_tick > 0 ) {
-        als_tick--;
       }
 #endif
       

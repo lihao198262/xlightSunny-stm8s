@@ -1700,6 +1700,9 @@
       <file>
         <name>$PROJ_DIR$\Project\inc\Uart2Dev.h</name>
       </file>
+      <file>
+        <name>$PROJ_DIR$\Project\inc\xliNodeConfig.h</name>
+      </file>
     </group>
     <group>
       <name>src</name>

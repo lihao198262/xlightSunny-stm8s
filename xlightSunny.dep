@@ -2,7 +2,7 @@
 
 <project>
   <fileVersion>2</fileVersion>
-  <fileChecksum>3514299974</fileChecksum>
+  <fileChecksum>2093000383</fileChecksum>
   <configuration>
     <name>Debug</name>
     <outputs>
@@ -131,6 +131,7 @@
       <file>$PROJ_DIR$\Debug\Obj\stm8s_spi.o</file>
       <file>$PROJ_DIR$\Debug\Obj\stm8s_spi.pbi</file>
       <file>$PROJ_DIR$\Debug\Obj\ADC1Dev.o</file>
+      <file>$PROJ_DIR$\Project\inc\xliNodeConfig.h</file>
     </outputs>
     <file>
       <name>$PROJ_DIR$\Project\src\sen_als.c</name>
@@ -185,19 +186,15 @@
           <name>BICOMP</name>
           <file> 15</file>
         </tool>
-        <tool>
-          <name>ICCSTM8</name>
-          <file> 94</file>
-        </tool>
       </outputs>
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 103 42 80 119 11 32 112 104 49 64 35 40 86 34 55 10 106 0 1 14 66 110 105 102 52 75 3 2 25 85 36 45 41 50 58 91</file>
+          <file> 112 49 64 104 125 80 103 42 119 11 35 40 86 52 34 32 55 10 106 0 1 14 66 110 105 102 75 3 2 25 85 36 45 41 50 58 91</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
-          <file> 52 34 80 35 0 75 103 3 1 2 40 25 14 85 104 36 66 45 41 110 42 50 106 112 64 11 105 86 102 91 119 49 58 10 32 55</file>
+          <file> 52 34 80 35 0 75 103 3 1 2 40 25 14 85 104 36 66 45 41 110 42 50 106 112 64 11 105 86 102 91 119 49 58 10 32 55 125</file>
         </tool>
       </inputs>
     </file>
@@ -273,19 +270,15 @@
           <name>BICOMP</name>
           <file> 72</file>
         </tool>
-        <tool>
-          <name>ICCSTM8</name>
-          <file> 28</file>
-        </tool>
       </outputs>
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 80 112 2 52 45 47 35 75 85 11 64 34 57 32 55 27 10 3 25 36 41 50 58 91 106 0 103 1 40 14 104 66 110 42 49 105 119 86 102</file>
+          <file> 35 50 52 3 47 36 80 58 11 34 32 27 112 25 41 91 64 57 125 55 46 39 56 10 75 2 85 45 106 0 103 1 40 14 104 66 110 42 49 105 119 86 102</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
-          <file> 34 80 35 0 75 103 3 1 2 40 25 14 85 104 36 66 45 41 110 42 50 106 112 64 11 105 86 102 91 119 49 58 10 57 47 32 52 55 27</file>
+          <file> 34 80 35 0 75 103 3 1 2 40 25 14 85 104 36 66 45 41 110 42 50 106 112 64 11 105 86 102 91 119 49 58 10 57 47 32 125 52 55 27 46 39 56</file>
         </tool>
       </inputs>
     </file>
@@ -296,16 +289,8 @@
           <name>BICOMP</name>
           <file> 63</file>
         </tool>
-        <tool>
-          <name>ICCSTM8</name>
-          <file> 65</file>
-        </tool>
       </outputs>
       <inputs>
-        <tool>
-          <name>BICOMP</name>
-          <file> 80 25 106 41 102 10 35 3 36 50 64 34 112 75 2 85 45 49 91 119 86 11 55 0 103 1 40 14 104 66 110 42 58 105</file>
-        </tool>
         <tool>
           <name>ICCSTM8</name>
           <file> 55 34 80 35 0 75 103 3 1 2 40 25 14 85 104 36 66 45 41 110 42 50 106 112 64 11 105 86 102 91 119 49 58 10</file>
@@ -722,6 +707,10 @@
         </tool>
       </inputs>
     </file>
+    <forcedrebuild>
+      <name>[MULTI_TOOL]</name>
+      <tool>ILINK</tool>
+    </forcedrebuild>
   </configuration>
   <configuration>
     <name>Release</name>
