@@ -87,8 +87,9 @@
 #define GRADUAL_CCT
 //#define GRADUAL_RGB
 #define DEFAULT_BRIGHTNESS      65
-#define MAX_STEP_TIMES          51
 #define BRIGHTNESS_STEP         1
+#define MAX_STEP_TIMES          51
+#define MAX_FASTSTEP_TIMES      10
 #define CCT_STEP                50
 #define RGB_STEP                3
 
@@ -163,6 +164,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 uint8_t idleProcess();
+void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 
 // All rings or the first ring
 #define DEVST_OnOff             gConfig.ring[0].State

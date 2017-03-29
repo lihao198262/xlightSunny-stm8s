@@ -264,7 +264,7 @@ void LoadConfig()
 #endif      
       gConfig.funcMap = 0;
       gConfig.alsLevel[0] = 70;
-      gConfig.alsLevel[1] = 90;
+      gConfig.alsLevel[1] = 80;
 
       gIsChanged = TRUE;
       SaveConfig();
@@ -290,7 +290,7 @@ bool WaitMutex(uint32_t _timeout) {
   return FALSE;
 }
 
-uint8_t GetSteps(uint32_t _from, uint32_t _to)
+uint8_t GetSteps(uint32_t _from, uint32_t _to, bool _fast)
 {
   uint8_t _step = BRIGHTNESS_STEP;
   uint32_t _gap;
@@ -300,8 +300,9 @@ uint8_t GetSteps(uint32_t _from, uint32_t _to)
     _gap = _to - _from;
   }
   // Max 40 times
-  if( _step * MAX_STEP_TIMES < _gap ) {
-    _step = _gap / MAX_STEP_TIMES + 1;
+  uint8_t _maxSteps = (_fast ? MAX_FASTSTEP_TIMES: MAX_STEP_TIMES);
+  if( _step * _maxSteps < _gap ) {
+    _step = _gap / _maxSteps + 1;
   }
   return _step;
 }
@@ -456,14 +457,16 @@ bool SayHelloToDevice(bool infinate) {
 
 int main( void ) {
 #ifdef EN_SENSOR_ALS
-   static uint8_t pre_als_value = 0;
+   uint8_t pre_als_value = 0;
    uint8_t als_value;
    uint16_t als_tick = 0;
    uint8_t lv_Brightness;
+   uint8_t lv_steps;
+   bool lv_preBRChanged;
 #endif
 
 #ifdef EN_SENSOR_PIR
-   static bool pre_pir_st = FALSE;
+   bool pre_pir_st = FALSE;
    bool pir_st;
    uint16_t pir_tick = 0;
 #endif
@@ -576,18 +579,28 @@ int main( void ) {
             // Send brightness message
             pre_als_value = als_value;
             Msg_SenALS(pre_als_value);
-
-            // Action
-            if( gConfig.funcMap & controlALS ) {
-              if( DEVST_OnOff ) {
-                if( als_value < gConfig.alsLevel[0] || als_value > gConfig.alsLevel[1] ) {
-                  lv_Brightness = (gConfig.alsLevel[0] + gConfig.alsLevel[1]) / 2;
-                  if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
-                    SendMyMessage();
-                    SetDeviceBrightness(lv_Brightness, RING_ID_ALL);
-                    Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
-                  }
-                }
+          }
+          
+          // Action
+          if( gConfig.funcMap & controlALS ) {
+            if( DEVST_OnOff ) {
+              lv_Brightness = 0;
+              if( als_value < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
+                lv_steps = GetSteps(als_value, gConfig.alsLevel[0], TRUE);
+                lv_Brightness = DEVST_Bright + lv_steps;
+              } else if( als_value > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
+                lv_steps = GetSteps(als_value, gConfig.alsLevel[1], TRUE);
+                lv_Brightness = (DEVST_Bright > lv_steps ? DEVST_Bright - lv_steps : 0);
+              }
+              if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
+                DEVST_Bright = lv_Brightness;
+                ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
+                lv_preBRChanged = TRUE;
+              } else if( lv_preBRChanged ) {
+                lv_preBRChanged = FALSE;
+                gIsChanged = TRUE;
+                SendMyMessage();
+                Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
               }
             }
           }
@@ -788,7 +801,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
-    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF]);
+    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
@@ -838,7 +851,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
     // Get Step
-    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF]);
+    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
@@ -875,7 +888,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     delay_from[DELAY_TIM_BR] = RINGST_Bright(r_index);
     delay_to[DELAY_TIM_BR] = _br;
     delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
-    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR]);
+    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR], FALSE);
 #endif
     
     bool newSW = (_br >= BR_MIN_VALUE);
@@ -907,7 +920,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     delay_from[DELAY_TIM_BR] = DEVST_Bright;
     delay_to[DELAY_TIM_BR] = _br;
     delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
-    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR]);
+    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR], FALSE);
 #endif
     
     bool newSW = (_br >= BR_MIN_VALUE);
