@@ -66,6 +66,9 @@ uint8_t ParseProtocol(){
       case NCF_DATA_ALS_RANGE:
         gConfig.alsLevel[0] = msg.payload.data[0];
         gConfig.alsLevel[1] = msg.payload.data[1];
+        if( gConfig.alsLevel[1] < gConfig.alsLevel[0] ) {
+          gConfig.alsLevel[1] = gConfig.alsLevel[0];
+        }
         gIsChanged = TRUE;
         break;
       }

@@ -576,19 +576,17 @@ int main( void ) {
             // Send brightness message
             pre_als_value = als_value;
             Msg_SenALS(pre_als_value);
+
             // Action
             if( gConfig.funcMap & controlALS ) {
               if( DEVST_OnOff ) {
-                lv_Brightness = 0;
-                if( DEVST_Bright < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
-                  lv_Brightness = DEVST_Bright + BRIGHTNESS_STEP;
-                } else if( DEVST_Bright > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
-                  lv_Brightness = DEVST_Bright - BRIGHTNESS_STEP;
-                }
-                if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
-                  SendMyMessage();
-                  SetDeviceBrightness(lv_Brightness, RING_ID_ALL);
-                  Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+                if( als_value < gConfig.alsLevel[0] || als_value > gConfig.alsLevel[1] ) {
+                  lv_Brightness = (gConfig.alsLevel[0] + gConfig.alsLevel[1]) / 2;
+                  if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
+                    SendMyMessage();
+                    SetDeviceBrightness(lv_Brightness, RING_ID_ALL);
+                    Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+                  }
                 }
               }
             }
