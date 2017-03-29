@@ -55,12 +55,10 @@ uint8_t ParseProtocol(){
 
       case NCF_MAP_SENSOR:
         gConfig.senMap = msg.payload.data[0] + msg.payload.data[1] * 256;
-        gIsChanged = TRUE;
         break;
         
       case NCF_MAP_FUNC:
         gConfig.funcMap = msg.payload.data[0] + msg.payload.data[1] * 256;
-        gIsChanged = TRUE;
         break;
 
       case NCF_DATA_ALS_RANGE:
@@ -69,9 +67,11 @@ uint8_t ParseProtocol(){
         if( gConfig.alsLevel[1] < gConfig.alsLevel[0] ) {
           gConfig.alsLevel[1] = gConfig.alsLevel[0];
         }
-        gIsChanged = TRUE;
         break;
       }
+      gIsChanged = TRUE;
+      Msg_NodeConfigAck(_sender, _sensor);
+      return 1;
     }
     break;
     
@@ -230,6 +230,15 @@ uint8_t ParseProtocol(){
   }
   
   return 0;
+}
+
+void Msg_NodeConfigAck(uint8_t _to, uint8_t _ncf) {
+  build(_to, _ncf, C_INTERNAL, I_CONFIG, 0, 1);
+
+  msg.payload.data[0] = 1;      // OK
+  miSetPayloadType(P_BYTE);
+  miSetLength(1);
+  bMsgReady = 1;
 }
 
 // Prepare NCF query ack message
