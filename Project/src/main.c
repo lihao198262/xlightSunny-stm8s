@@ -45,7 +45,7 @@ Connections:
 //#define ENABLE_SDTM
 
 // Xlight Application Identification
-#define XLA_VERSION               0x01
+#define XLA_VERSION               0x03
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
 
 // Choose Product Name & Type
@@ -288,6 +288,22 @@ bool WaitMutex(uint32_t _timeout) {
     if( idleProcess() > 0 ) return TRUE;
   }
   return FALSE;
+}
+
+uint8_t GetSteps(uint32_t _from, uint32_t _to)
+{
+  uint8_t _step = BRIGHTNESS_STEP;
+  uint32_t _gap;
+  if( _from > _to ) {
+    _gap = _from - _to;
+  } else {
+    _gap = _to - _from;
+  }
+  // Max 40 times
+  if( _step * MAX_STEP_TIMES < _gap ) {
+    _step = _gap / MAX_STEP_TIMES + 1;
+  }
+  return _step;
 }
 
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
@@ -538,6 +554,7 @@ int main( void ) {
             Msg_SenPIR(pre_pir_st);
             // Action
             if( gConfig.funcMap & controlPIR ) {
+              SendMyMessage();
               SetDeviceOnOff(pir_st, RING_ID_ALL);
               Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
             }
@@ -564,11 +581,12 @@ int main( void ) {
               if( DEVST_OnOff ) {
                 lv_Brightness = 0;
                 if( DEVST_Bright < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
-                  lv_Brightness = DEVST_Bright + BR_STEP;
+                  lv_Brightness = DEVST_Bright + BRIGHTNESS_STEP;
                 } else if( DEVST_Bright > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
-                  lv_Brightness = DEVST_Bright - BR_STEP;
+                  lv_Brightness = DEVST_Bright - BRIGHTNESS_STEP;
                 }
                 if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
+                  SendMyMessage();
                   SetDeviceBrightness(lv_Brightness, RING_ID_ALL);
                   Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
                 }
@@ -772,7 +790,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
-    delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
+    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF]);
 
     // Smoothly change brightness - set timer
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
@@ -821,7 +839,8 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
-    delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
+    // Get Step
+    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF]);
 
     // Smoothly change brightness - set timer
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
@@ -858,7 +877,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     delay_from[DELAY_TIM_BR] = RINGST_Bright(r_index);
     delay_to[DELAY_TIM_BR] = _br;
     delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
-    delay_step[DELAY_TIM_BR] = BRIGHTNESS_STEP;
+    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR]);
 #endif
     
     bool newSW = (_br >= BR_MIN_VALUE);
@@ -890,7 +909,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     delay_from[DELAY_TIM_BR] = DEVST_Bright;
     delay_to[DELAY_TIM_BR] = _br;
     delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
-    delay_step[DELAY_TIM_BR] = BRIGHTNESS_STEP;
+    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR]);
 #endif
     
     bool newSW = (_br >= BR_MIN_VALUE);
@@ -1295,8 +1314,12 @@ bool isTimerCompleted(uint8_t _tmr) {
       bFinished = ( delay_from[_tmr] >= delay_to[_tmr] );
     } else {
       // Down
-      delay_from[_tmr] -= delay_step[_tmr];
-      bFinished = ( delay_from[_tmr] <= delay_to[_tmr] );
+      if( delay_from[_tmr] > delay_step[_tmr] ) {
+        delay_from[_tmr] -= delay_step[_tmr];
+        bFinished = FALSE;
+      } else {
+        bFinished = TRUE;
+      }
     }
   }
   
@@ -1331,6 +1354,7 @@ uint8_t idleProcess() {
         // Timer not reached, tick it
         delay_tick[_tmr]--;
       }
+      break; // Only one time at a time
     }
   }
   

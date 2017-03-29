@@ -47,13 +47,19 @@ uint8_t ParseProtocol(){
     } else if( _type == I_CONFIG ) {
       // Node Config
       switch( _sensor ) {
+      case NCF_QUERY:
+        // Inform controller with version & NCF data
+        Msg_NodeConfigData(_sender);
+        return 1;
+        break;
+
       case NCF_MAP_SENSOR:
-        gConfig.senMap = msg.payload.uiValue;
+        gConfig.senMap = msg.payload.data[0] + msg.payload.data[1] * 256;
         gIsChanged = TRUE;
         break;
         
       case NCF_MAP_FUNC:
-        gConfig.funcMap = msg.payload.uiValue;
+        gConfig.funcMap = msg.payload.data[0] + msg.payload.data[1] * 256;
         gIsChanged = TRUE;
         break;
 
@@ -221,6 +227,29 @@ uint8_t ParseProtocol(){
   }
   
   return 0;
+}
+
+// Prepare NCF query ack message
+void Msg_NodeConfigData(uint8_t _to) {
+  uint8_t payl_len = 0;
+  build(_to, NCF_QUERY, C_INTERNAL, I_CONFIG, 0, 1);
+
+  msg.payload.data[payl_len++] = gConfig.version;
+  msg.payload.data[payl_len++] = gConfig.type;
+  msg.payload.data[payl_len++] = gConfig.senMap % 256;
+  msg.payload.data[payl_len++] = gConfig.senMap / 256;
+  msg.payload.data[payl_len++] = gConfig.funcMap % 256;
+  msg.payload.data[payl_len++] = gConfig.funcMap / 256;
+  msg.payload.data[payl_len++] = gConfig.alsLevel[0];
+  msg.payload.data[payl_len++] = gConfig.alsLevel[1];
+  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = 0;     // Reservered
+  
+  miSetLength(payl_len);
+  miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
 }
 
 void Msg_RequestNodeID() {
