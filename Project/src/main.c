@@ -1325,7 +1325,7 @@ bool isTimerCompleted(uint8_t _tmr) {
       bFinished = ( delay_from[_tmr] >= delay_to[_tmr] );
     } else {
       // Down
-      if( delay_from[_tmr] > delay_step[_tmr] ) {
+      if( delay_from[_tmr] > delay_to[_tmr] + delay_step[_tmr] ) {
         delay_from[_tmr] -= delay_step[_tmr];
         bFinished = FALSE;
       } else {
