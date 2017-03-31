@@ -9,8 +9,8 @@
 /* Exported types ------------------------------------------------------------*/
 // Include Sensors
 /// Comment off line to disable sensor
-//#define EN_SENSOR_ALS
-//#define EN_SENSOR_PIR
+#define EN_SENSOR_ALS
+#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
 
@@ -146,6 +146,7 @@ typedef struct
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
+  UC pirLevel[2];
 } Config_t;
 
 extern Config_t gConfig;

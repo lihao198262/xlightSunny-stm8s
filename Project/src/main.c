@@ -72,7 +72,7 @@ Connections:
 
 // Window Watchdog
 // Uncomment this line if in debug mode
-#define DEBUG_NO_WWDG
+//#define DEBUG_NO_WWDG
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
@@ -239,12 +239,15 @@ void LoadConfig()
       gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
 #if defined(XSUNNY)      
       gConfig.ring[0].CCT = CT_MIN_VALUE;
-#else
-      gConfig.ring[0].CCT = 0;
-#endif      
       gConfig.ring[0].R = 0;
       gConfig.ring[0].G = 0;
       gConfig.ring[0].B = 0;
+#else
+      gConfig.ring[0].CCT = 0;
+      gConfig.ring[0].R = 128;
+      gConfig.ring[0].G = 64;
+      gConfig.ring[0].B = 100;
+#endif      
       gConfig.ring[1] = gConfig.ring[0];
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
@@ -265,6 +268,8 @@ void LoadConfig()
       gConfig.funcMap = 0;
       gConfig.alsLevel[0] = 70;
       gConfig.alsLevel[1] = 80;
+      gConfig.pirLevel[0] = 0;
+      gConfig.pirLevel[1] = 0;
 
       gIsChanged = TRUE;
       SaveConfig();
@@ -456,11 +461,11 @@ bool SayHelloToDevice(bool infinate) {
 }
 
 int main( void ) {
+  uint8_t lv_Brightness;
 #ifdef EN_SENSOR_ALS
    uint8_t pre_als_value = 0;
    uint8_t als_value;
    uint16_t als_tick = 0;
-   uint8_t lv_Brightness;
    uint8_t lv_steps;
    bool lv_preBRChanged;
 #endif
@@ -500,7 +505,7 @@ int main( void ) {
 #endif  
   
   // Init serial ports
-  uart2_config();
+  //uart2_config();
   
   while(1) {
     // Go on only if NRF chip is presented
@@ -558,7 +563,27 @@ int main( void ) {
             // Action
             if( gConfig.funcMap & controlPIR ) {
               SendMyMessage();
-              SetDeviceOnOff(pir_st, RING_ID_ALL);
+              if(  gConfig.pirLevel[0] == 0 && gConfig.pirLevel[1] == 0 ) {
+                SetDeviceOnOff(pir_st, RING_ID_ALL);
+              } else {
+                if( pir_st ) {
+                  lv_Brightness = gConfig.pirLevel[1];
+                  if( lv_Brightness > 100 ) { 
+                    DEVST_Bright += (lv_Brightness - 100);
+                  } else {
+                    DEVST_Bright = lv_Brightness;
+                  }
+                } else {
+                  lv_Brightness = gConfig.pirLevel[0];
+                  if( lv_Brightness > 100 ) { 
+                    DEVST_Bright -= (lv_Brightness - 100);
+                  } else {
+                    DEVST_Bright = lv_Brightness;
+                  }
+                }
+                ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
+                gIsChanged = TRUE;
+              }
               Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
             }
           }

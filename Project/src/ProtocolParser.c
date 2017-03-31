@@ -68,6 +68,11 @@ uint8_t ParseProtocol(){
           gConfig.alsLevel[1] = gConfig.alsLevel[0];
         }
         break;
+
+      case NCF_DATA_PIR_RANGE:
+        gConfig.pirLevel[0] = msg.payload.data[0];
+        gConfig.pirLevel[1] = msg.payload.data[1];
+        break;
       }
       gIsChanged = TRUE;
       Msg_NodeConfigAck(_sender, _sensor);
@@ -254,8 +259,8 @@ void Msg_NodeConfigData(uint8_t _to) {
   msg.payload.data[payl_len++] = gConfig.funcMap / 256;
   msg.payload.data[payl_len++] = gConfig.alsLevel[0];
   msg.payload.data[payl_len++] = gConfig.alsLevel[1];
-  msg.payload.data[payl_len++] = 0;     // Reservered
-  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = gConfig.pirLevel[0];
+  msg.payload.data[payl_len++] = gConfig.pirLevel[1];
   msg.payload.data[payl_len++] = 0;     // Reservered
   msg.payload.data[payl_len++] = 0;     // Reservered
   
