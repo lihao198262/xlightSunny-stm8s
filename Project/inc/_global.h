@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Include Sensors
 /// Comment off line to disable sensor
-#define EN_SENSOR_ALS
+//#define EN_SENSOR_ALS
 #define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
