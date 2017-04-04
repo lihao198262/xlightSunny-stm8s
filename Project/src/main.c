@@ -7,9 +7,8 @@
 #include "LightPwmDrv.h"
 #include "Uart2Dev.h"
 
-#ifdef EN_SENSOR_ALS
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
 #include "ADC1Dev.h"
-#include "sen_als.h"
 #endif
 
 #ifdef EN_SENSOR_PIR
@@ -82,6 +81,11 @@ Connections:
 #define SYS_WAIT_NODEID                 2
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
+
+#define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
+
+// Uncomment this line to enable CCT brightness quadratic function
+//#define CCT_BR_QUADRATIC_FUNC
 
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)
@@ -228,10 +232,11 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.type != XLA_PRODUCT_Type 
+       || gConfig.type != XLA_PRODUCT_Type || isNodeIdRequired()
        || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
+      gConfig.nodeID = BASESERVICE_ADDRESS;
       InitNodeAddress();
       gConfig.present = 0;
       gConfig.type = XLA_PRODUCT_Type;
@@ -271,9 +276,13 @@ void LoadConfig()
       gConfig.pirLevel[0] = 0;
       gConfig.pirLevel[1] = 0;
 
-      gIsChanged = TRUE;
-      SaveConfig();
+      //gIsChanged = TRUE;
+      //SaveConfig();
     }
+    
+    // Engineering Code
+    //gConfig.nodeID = BASESERVICE_ADDRESS;
+    //gConfig.swTimes = 0;
 }
 
 void UpdateNodeAddress(void) {
@@ -332,11 +341,13 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   // Func 2
   // y = (100 - b) * x * x / 10000 + b
   // , where b = LIGHT_PWM_THRESHOLD
+#ifdef CCT_BR_QUADRATIC_FUNC
   if( ucBright > 0 ) {
     //float rootBright = sqrt(ucBright);
     //ucBright = (uint32_t)((100 - LIGHT_PWM_THRESHOLD) * ucBright * rootBright / 1000 + LIGHT_PWM_THRESHOLD + 0.5);
     ucBright = (100 - LIGHT_PWM_THRESHOLD) * ucBright * ucBright / 10000 + LIGHT_PWM_THRESHOLD + 0.5;
   }
+#endif
   
   pwm_Warm = (1000 - ucWarmCold)*ucBright/1000 ;
   pwm_Cold = ucWarmCold*ucBright/1000 ;
@@ -434,13 +445,20 @@ bool SayHelloToDevice(bool infinate) {
 
     // Can't presented for a few times, then try request NodeID again
     // Either because SmartController is off, or changed
-    if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= 5 ) {
+    if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= REGISTER_RESET_TIMES && REGISTER_RESET_TIMES < 100 ) {
       _presentCnt = 0;
       // Reset RF Address
       InitNodeAddress();
       UpdateNodeAddress();
       mStatus = SYS_WAIT_NODEID;
       _doNow = TRUE;
+    }
+    
+    // Reset switch count
+    if( _count > 10 && gConfig.swTimes > 0 ) {
+      gConfig.swTimes = 0;
+      gIsChanged = TRUE;
+      SaveConfig();
     }
     
     if( _doNow ) {
@@ -462,6 +480,7 @@ bool SayHelloToDevice(bool infinate) {
 
 int main( void ) {
   uint8_t lv_Brightness;
+
 #ifdef EN_SENSOR_ALS
    uint8_t pre_als_value = 0;
    uint8_t als_value;
@@ -476,7 +495,6 @@ int main( void ) {
    uint16_t pir_tick = 0;
 #endif
    
-   
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
@@ -487,20 +505,30 @@ int main( void ) {
   initTim2PWMFunction();
 
   // Init sensors
-#ifdef EN_SENSOR_ALS  
-  als_init();
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
+  ADC1_PinInit();
 #endif
 #ifdef EN_SENSOR_PIR
   pir_init();
-#endif  
+#endif
   
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
 
+  // on / off 3 times to reset device
+  gConfig.swTimes++;
+  if( gConfig.swTimes >= 5 ) {
+    gConfig.swTimes = 0;
+    gConfig.nodeID = BASESERVICE_ADDRESS;
+    InitNodeAddress();
+  }
+  gIsChanged = TRUE;
+  SaveConfig();
+  
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC  
   // Init ADC
-#ifdef EN_SENSOR_ALS  
   ADC1_Config();
 #endif  
   
@@ -541,6 +569,9 @@ int main( void ) {
 #else  
     // Must establish connection firstly
     SayHelloToDevice(TRUE);
+    gConfig.swTimes = 0;
+    gIsChanged = TRUE;
+    SaveConfig();
 #endif
     
   

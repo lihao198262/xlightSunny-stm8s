@@ -10,6 +10,7 @@
 // Include Sensors
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
+//#define EN_SENSOR_MIC
 #define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
@@ -142,7 +143,8 @@ typedef struct
   char ProductName[24];                     // Product name
   UC rfPowerLevel             :2;           // RF Power Level 0..3
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
-  UC Reserved1                :5;           // Reserved bits
+  UC swTimes                  :3;           // On/Off times
+  UC Reserved1                :2;           // Reserved bits
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];

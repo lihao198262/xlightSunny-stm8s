@@ -3,6 +3,10 @@
 
 #include "stm8s.h"
 
-void ADC1_Config(void);
+void ADC1_Config();
+void ADC1_PinInit();
+
+uint8_t als_read();
+uint16_t mic_read();
 
 #endif

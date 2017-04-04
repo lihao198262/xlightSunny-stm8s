@@ -40,6 +40,7 @@ typedef enum
   constTEMP             = ((uint16_t)0x0008),   // Constant tempreture
   constHUM              = ((uint16_t)0x0010),   // Constant humidity
   constPM25             = ((uint16_t)0x0020),   // Constant air quality
+  constMIC              = ((uint16_t)0x0040),   // Use MIC threshold to control device on / off
   func_All              = ((uint8_t)0xFFFF)
 }functions_bit_t;
 

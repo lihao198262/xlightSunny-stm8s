@@ -39,8 +39,8 @@ uint8_t ParseProtocol(){
       if( lv_nodeID == NODEID_GATEWAY || lv_nodeID == NODEID_DUMMY ) {
       } else {
         gConfig.nodeID = lv_nodeID;
-        gIsChanged = TRUE;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
+        gIsChanged = TRUE;
         GotNodeID();
         return 1;
       }
