@@ -42,6 +42,9 @@ uint8_t ParseProtocol(){
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
         gIsChanged = TRUE;
         GotNodeID();
+        // Increase brightness to indicate ID required
+        SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
+        Msg_DevBrightness(_sender, _sensor);
         return 1;
       }
     } else if( _type == I_CONFIG ) {
@@ -131,6 +134,7 @@ uint8_t ParseProtocol(){
       if( !_isAck ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness;
+        gConfig.filter = 0;
         if( miGetLength() == 2 ) {
           switch( msg.payload.data[0] ) {
           case OPERATOR_ADD:
@@ -161,6 +165,7 @@ uint8_t ParseProtocol(){
       if( !_isAck ) {
         // Get main lamp(ID:1) CCT V_LEVEL
         uint16_t _CCTValue;
+        gConfig.filter = 0;
         if( miGetLength() == 3 ) {
           uint16_t _deltaValue = msg.payload.data[2] * 256 + msg.payload.data[1];
           switch( msg.payload.data[0] ) {
@@ -191,6 +196,7 @@ uint8_t ParseProtocol(){
     } else if( _type == V_RGBW ) { // RGBW
       if( !_isAck ) {
         // Get main lamp(ID:1) RGBW
+        gConfig.filter = 0;
         uint8_t _RingID = msg.payload.data[0];
         if( _RingID > MAX_RING_NUM ) _RingID = RING_ID_ALL;
         uint8_t r_index = (_RingID == RING_ID_ALL ? 0 : _RingID - 1);
@@ -229,6 +235,15 @@ uint8_t ParseProtocol(){
           Msg_DevTopology(_sender, _sensor, _RingID);
           return 1;
         }          
+      }
+    } else if( _type == V_VAR1 ) { // Special effect
+      if( !_isAck ) {
+        SetDeviceFilter(msg.payload.bValue);
+        if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
+          Msg_DevFilter(_sender, _sensor);
+          return 1;
+        }
       }
     }
     break;
@@ -416,6 +431,15 @@ void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   
   miSetLength(payl_len);
   miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
+}
+
+// Prepare device filter message
+void Msg_DevFilter(uint8_t _to, uint8_t _dest) {
+  build(_to, _dest, C_REQ, V_VAR1, 0, 1);
+  miSetLength(1);
+  miSetPayloadType(P_BYTE);
+  msg.payload.data[0] = gConfig.filter;
   bMsgReady = 1;
 }
 

@@ -41,7 +41,7 @@ Connections:
 
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-//#define ENABLE_SDTM
+#define ENABLE_SDTM
 
 // Xlight Application Identification
 #define XLA_VERSION               0x03
@@ -82,6 +82,7 @@ Connections:
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
 
+#define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
 
 // Uncomment this line to enable CCT brightness quadratic function
@@ -109,8 +110,8 @@ uint8_t mStatus = SYS_INIT;
 bool mGotNodeID = FALSE;
 bool mGotPresented = FALSE;
 uint8_t mutex = 0;
-uint8_t rx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
-uint8_t tx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
+uint8_t rx_addr[ADDRESS_WIDTH];
+uint8_t tx_addr[ADDRESS_WIDTH];
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
 
@@ -238,15 +239,11 @@ void LoadConfig()
       gConfig.version = XLA_VERSION;
       gConfig.nodeID = BASESERVICE_ADDRESS;
       InitNodeAddress();
-      gConfig.present = 0;
       gConfig.type = XLA_PRODUCT_Type;
       gConfig.ring[0].State = 1;
       gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
 #if defined(XSUNNY)      
       gConfig.ring[0].CCT = CT_MIN_VALUE;
-      gConfig.ring[0].R = 0;
-      gConfig.ring[0].G = 0;
-      gConfig.ring[0].B = 0;
 #else
       gConfig.ring[0].CCT = 0;
       gConfig.ring[0].R = 128;
@@ -286,15 +283,15 @@ void LoadConfig()
 }
 
 void UpdateNodeAddress(void) {
-#ifdef ENABLE_SDTM
-  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, 0);     // Without openning the boardcast pipe
-#else  
   memcpy(rx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
   rx_addr[0] = gConfig.nodeID;
   memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
+#ifdef ENABLE_SDTM  
+  tx_addr[0] = NODEID_MIN_REMOTE;
+#else
   tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
-  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 #endif  
+  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
 bool WaitMutex(uint32_t _timeout) {
@@ -455,7 +452,7 @@ bool SayHelloToDevice(bool infinate) {
     }
     
     // Reset switch count
-    if( _count > 10 && gConfig.swTimes > 0 ) {
+    if( _count >= 10 && gConfig.swTimes > 0 ) {
       gConfig.swTimes = 0;
       gIsChanged = TRUE;
       SaveConfig();
@@ -519,7 +516,7 @@ int main( void ) {
 
   // on / off 3 times to reset device
   gConfig.swTimes++;
-  if( gConfig.swTimes >= 5 ) {
+  if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
     gConfig.swTimes = 0;
     gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
@@ -561,9 +558,10 @@ int main( void ) {
     NRF2401_EnableIRQ();
   
 #ifdef ENABLE_SDTM
-    gConfig.nodeID = 0x11;
+    gConfig.nodeID = BASESERVICE_ADDRESS;
+    memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
     UpdateNodeAddress();
-    Msg_DevStatus(0x11, 0x11, RING_ID_ALL);
+    Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
     SendMyMessage();
     mStatus = SYS_RUNNING;
 #else  
@@ -1347,6 +1345,15 @@ bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uin
 #endif  
 }
 
+bool SetDeviceFilter(uint8_t _filter) {
+  if( _filter != gConfig.filter ) {
+    gConfig.filter = _filter;
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  return FALSE;
+}
+
 bool isTimerCompleted(uint8_t _tmr) {
   bool bFinished;
   
@@ -1416,6 +1423,11 @@ uint8_t idleProcess() {
         if( isTimerCompleted(_tmr) ) {
           // Stop timer - disable further operation
           BF_SET(delay_func, 0, _tmr, 1);
+          
+          // Special effect
+          if( _tmr <= DELAY_TIM_RGB && DEVST_OnOff == DEVICE_SW_ON && gConfig.filter > 0 ) {
+            
+          }
         }
       } else {
         // Timer not reached, tick it

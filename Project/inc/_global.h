@@ -11,7 +11,7 @@
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
 //#define EN_SENSOR_MIC
-#define EN_SENSOR_PIR
+//#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
 
@@ -26,6 +26,7 @@
 #define DEVICE_SW_OFF               0       // Turn Off
 #define DEVICE_SW_ON                1       // Turn On
 #define DEVICE_SW_TOGGLE            2       // Toggle
+#define DEVICE_SW_DUMMY             3       // Detail followed
 
 // Update operator for set brightness & CCT command
 #define OPERATOR_SET                0
@@ -33,6 +34,13 @@
 #define OPERATOR_SUB                2
 #define OPERATOR_MUL                3
 #define OPERATOR_DIV                4
+
+// Filter (special effect)
+#define FILTER_SP_EF_NONE           0
+#define FILTER_SP_EF_BREATH         1       // Normal breathing light
+#define FILTER_SP_EF_FAST_BREATH    2       // Fast breathing light
+#define FILTER_SP_EF_FLORID         3       // Randomly altering color
+#define FILTER_SP_EF_FAST_FLORID    4       // Fast randomly altering color
 
 // Serial Command
 #define UART_CMD_HELLO                  0
@@ -135,7 +143,8 @@ typedef struct
   UC nodeID;                                // Node ID for this device
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
-  UC reserved                 :7;
+  UC reserved                 :3;
+  UC filter                   :4;
   UC type;                                  // Type of lamp
   US token;
   Hue_t ring[MAX_RING_NUM];
@@ -166,6 +175,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring);
 bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
+bool SetDeviceFilter(uint8_t _filter);
 uint8_t idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 
