@@ -13,6 +13,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
+#define WATT_PERCENTAGE                 ((uint16_t)75)                  // 50 to 100
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -165,6 +166,7 @@ void regulateColdLightPulseWidth (unsigned char ucPercent)
   if (ucPercent > 100)
     ucPercent = 100;
   //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / ucPercent;
+  ucPercent = ucPercent * WATT_PERCENTAGE / 100;
     
   //TIM2_CtrlPWMOutputs(DISABLE);
   //TIM2_Cmd(DISABLE);
@@ -179,6 +181,7 @@ void regulateWarmLightPulseWidth (unsigned char ucPercent)
   //uint16_t pulseWidth;
   if (ucPercent > 100)
     ucPercent = 100;
+  ucPercent = ucPercent * WATT_PERCENTAGE / 100;
   
   //pulseWidth = ucPercent * 2;
   //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / pulseWidth;
@@ -237,10 +240,10 @@ void LightRGBWBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WVa
   WValue = WValue * 80 / 255;
   */
   
-  RValue = RValue * BRPercent / 100;
-  GValue = GValue * BRPercent / 100;
-  BValue = BValue * BRPercent / 100;
-  WValue = WValue * BRPercent / 100;
+  RValue = RValue * (WATT_PERCENTAGE - 1) / 100 * BRPercent / 100;
+  GValue = GValue * (WATT_PERCENTAGE - 15) / 100 * BRPercent / 100;
+  BValue = BValue * (WATT_PERCENTAGE - 15) / 100 * BRPercent / 100;
+  WValue = WValue * (WATT_PERCENTAGE - 15) / 100 * BRPercent / 100;
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
   RGBWCtrl(RValue, GValue, BValue, WValue);
@@ -258,9 +261,9 @@ void LightRGBBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t BRPe
   BValue = BValue * 80 / 255;
   */
   
-  RValue = RValue * BRPercent / 100;
-  GValue = GValue * BRPercent / 100;
-  BValue = BValue * BRPercent / 100;
+  RValue = RValue * WATT_PERCENTAGE / 100 * BRPercent / 100;
+  GValue = GValue * WATT_PERCENTAGE / 100 * BRPercent / 100;
+  BValue = BValue * WATT_PERCENTAGE / 100 * BRPercent / 100;
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
   RGBCtrl(RValue, GValue, BValue);

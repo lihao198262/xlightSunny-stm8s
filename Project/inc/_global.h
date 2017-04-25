@@ -10,7 +10,8 @@
 // Include Sensors
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
-#define EN_SENSOR_PIR
+//#define EN_SENSOR_MIC
+//#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
 
@@ -25,6 +26,7 @@
 #define DEVICE_SW_OFF               0       // Turn Off
 #define DEVICE_SW_ON                1       // Turn On
 #define DEVICE_SW_TOGGLE            2       // Toggle
+#define DEVICE_SW_DUMMY             3       // Detail followed
 
 // Update operator for set brightness & CCT command
 #define OPERATOR_SET                0
@@ -32,6 +34,13 @@
 #define OPERATOR_SUB                2
 #define OPERATOR_MUL                3
 #define OPERATOR_DIV                4
+
+// Filter (special effect)
+#define FILTER_SP_EF_NONE           0
+#define FILTER_SP_EF_BREATH         1       // Normal breathing light
+#define FILTER_SP_EF_FAST_BREATH    2       // Fast breathing light
+#define FILTER_SP_EF_FLORID         3       // Randomly altering color
+#define FILTER_SP_EF_FAST_FLORID    4       // Fast randomly altering color
 
 // Serial Command
 #define UART_CMD_HELLO                  0
@@ -55,6 +64,8 @@
 #define NODEID_MAX_REMOTE       127
 #define NODEID_PROJECTOR        128
 #define NODEID_SMARTPHONE       139
+#define NODEID_MIN_GROUP        192
+#define NODEID_MAX_GROUP        223
 #define NODEID_DUMMY            255
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
@@ -86,6 +97,8 @@
 //#define GRADUAL_RGB
 #define DEFAULT_BRIGHTNESS      65
 #define BRIGHTNESS_STEP         1
+#define MAX_STEP_TIMES          51
+#define MAX_FASTSTEP_TIMES      10
 #define CCT_STEP                50
 #define RGB_STEP                3
 
@@ -127,10 +140,11 @@ typedef struct
 typedef struct
 {
   UC version                  :8;           // Data version, other than 0xFF
-  UC nodeID;                                // Remote Node ID
+  UC nodeID;                                // Node ID for this device
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
-  UC reserved                 :7;
+  UC reserved                 :3;
+  UC filter                   :4;
   UC type;                                  // Type of lamp
   US token;
   Hue_t ring[MAX_RING_NUM];
@@ -138,7 +152,12 @@ typedef struct
   char ProductName[24];                     // Product name
   UC rfPowerLevel             :2;           // RF Power Level 0..3
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
-  UC Reserved1                :5;           // Reserved bits
+  UC swTimes                  :3;           // On/Off times
+  UC Reserved1                :2;           // Reserved bits
+  US senMap                   :16;          // Sensor Map
+  US funcMap                  :16;          // Function Map
+  UC alsLevel[2];
+  UC pirLevel[2];
 } Config_t;
 
 extern Config_t gConfig;
@@ -156,7 +175,9 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring);
 bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
+bool SetDeviceFilter(uint8_t _filter);
 uint8_t idleProcess();
+void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 
 // All rings or the first ring
 #define DEVST_OnOff             gConfig.ring[0].State
@@ -189,6 +210,7 @@ uint8_t idleProcess();
 #define IS_MIRAGE(DevType)          ((DevType) >= devtypMRing3 && (DevType) <= devtypMRing1)
 #define IS_VALID_REMOTE(DevType)    ((DevType) >= remotetypRFSimply && (DevType) <= remotetypRFEnhanced)
 
+#define IS_GROUP_NODEID(nID)       (nID >= NODEID_MIN_GROUP && nID <= NODEID_MAX_GROUP)
 #define IS_NOT_DEVICE_NODEID(nID)  ((nID < NODEID_MIN_DEVCIE || nID > NODEID_MAX_DEVCIE) && nID != NODEID_MAINDEVICE)
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 

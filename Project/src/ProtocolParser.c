@@ -2,6 +2,7 @@
 #include "_global.h"
 #include "MyMessage.h"
 #include "LightPwmDrv.h"
+#include "xliNodeConfig.h"
 
 uint8_t bMsgReady = 0;
 bool bDelaySend = FALSE;
@@ -38,12 +39,48 @@ uint8_t ParseProtocol(){
       if( lv_nodeID == NODEID_GATEWAY || lv_nodeID == NODEID_DUMMY ) {
       } else {
         gConfig.nodeID = lv_nodeID;
-        gIsChanged = TRUE;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
+        gIsChanged = TRUE;
         GotNodeID();
+        // Increase brightness to indicate ID required
+        SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
+        Msg_DevBrightness(_sender, _sensor);
         return 1;
       }
-    }    
+    } else if( _type == I_CONFIG ) {
+      // Node Config
+      switch( _sensor ) {
+      case NCF_QUERY:
+        // Inform controller with version & NCF data
+        Msg_NodeConfigData(_sender);
+        return 1;
+        break;
+
+      case NCF_MAP_SENSOR:
+        gConfig.senMap = msg.payload.data[0] + msg.payload.data[1] * 256;
+        break;
+        
+      case NCF_MAP_FUNC:
+        gConfig.funcMap = msg.payload.data[0] + msg.payload.data[1] * 256;
+        break;
+
+      case NCF_DATA_ALS_RANGE:
+        gConfig.alsLevel[0] = msg.payload.data[0];
+        gConfig.alsLevel[1] = msg.payload.data[1];
+        if( gConfig.alsLevel[1] < gConfig.alsLevel[0] ) {
+          gConfig.alsLevel[1] = gConfig.alsLevel[0];
+        }
+        break;
+
+      case NCF_DATA_PIR_RANGE:
+        gConfig.pirLevel[0] = msg.payload.data[0];
+        gConfig.pirLevel[1] = msg.payload.data[1];
+        break;
+      }
+      gIsChanged = TRUE;
+      Msg_NodeConfigAck(_sender, _sensor);
+      return 1;
+    }
     break;
     
   case C_PRESENTATION:
@@ -97,6 +134,7 @@ uint8_t ParseProtocol(){
       if( !_isAck ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness;
+        gConfig.filter = 0;
         if( miGetLength() == 2 ) {
           switch( msg.payload.data[0] ) {
           case OPERATOR_ADD:
@@ -127,6 +165,7 @@ uint8_t ParseProtocol(){
       if( !_isAck ) {
         // Get main lamp(ID:1) CCT V_LEVEL
         uint16_t _CCTValue;
+        gConfig.filter = 0;
         if( miGetLength() == 3 ) {
           uint16_t _deltaValue = msg.payload.data[2] * 256 + msg.payload.data[1];
           switch( msg.payload.data[0] ) {
@@ -157,6 +196,7 @@ uint8_t ParseProtocol(){
     } else if( _type == V_RGBW ) { // RGBW
       if( !_isAck ) {
         // Get main lamp(ID:1) RGBW
+        gConfig.filter = 0;
         uint8_t _RingID = msg.payload.data[0];
         if( _RingID > MAX_RING_NUM ) _RingID = RING_ID_ALL;
         uint8_t r_index = (_RingID == RING_ID_ALL ? 0 : _RingID - 1);
@@ -196,11 +236,52 @@ uint8_t ParseProtocol(){
           return 1;
         }          
       }
+    } else if( _type == V_VAR1 ) { // Special effect
+      if( !_isAck ) {
+        SetDeviceFilter(msg.payload.bValue);
+        if( _needAck ) {
+          bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
+          Msg_DevFilter(_sender, _sensor);
+          return 1;
+        }
+      }
     }
     break;
   }
   
   return 0;
+}
+
+void Msg_NodeConfigAck(uint8_t _to, uint8_t _ncf) {
+  build(_to, _ncf, C_INTERNAL, I_CONFIG, 0, 1);
+
+  msg.payload.data[0] = 1;      // OK
+  miSetPayloadType(P_BYTE);
+  miSetLength(1);
+  bMsgReady = 1;
+}
+
+// Prepare NCF query ack message
+void Msg_NodeConfigData(uint8_t _to) {
+  uint8_t payl_len = 0;
+  build(_to, NCF_QUERY, C_INTERNAL, I_CONFIG, 0, 1);
+
+  msg.payload.data[payl_len++] = gConfig.version;
+  msg.payload.data[payl_len++] = gConfig.type;
+  msg.payload.data[payl_len++] = gConfig.senMap % 256;
+  msg.payload.data[payl_len++] = gConfig.senMap / 256;
+  msg.payload.data[payl_len++] = gConfig.funcMap % 256;
+  msg.payload.data[payl_len++] = gConfig.funcMap / 256;
+  msg.payload.data[payl_len++] = gConfig.alsLevel[0];
+  msg.payload.data[payl_len++] = gConfig.alsLevel[1];
+  msg.payload.data[payl_len++] = gConfig.pirLevel[0];
+  msg.payload.data[payl_len++] = gConfig.pirLevel[1];
+  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = 0;     // Reservered
+  
+  miSetLength(payl_len);
+  miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
 }
 
 void Msg_RequestNodeID() {
@@ -350,6 +431,15 @@ void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
   
   miSetLength(payl_len);
   miSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
+}
+
+// Prepare device filter message
+void Msg_DevFilter(uint8_t _to, uint8_t _dest) {
+  build(_to, _dest, C_REQ, V_VAR1, 0, 1);
+  miSetLength(1);
+  miSetPayloadType(P_BYTE);
+  msg.payload.data[0] = gConfig.filter;
   bMsgReady = 1;
 }
 

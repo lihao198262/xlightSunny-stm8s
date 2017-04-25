@@ -2,13 +2,13 @@
 #include "delay.h"
 #include "rf24l01.h"
 #include "MyMessage.h"
+#include "xliNodeConfig.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
 #include "Uart2Dev.h"
 
-#ifdef EN_SENSOR_ALS
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
 #include "ADC1Dev.h"
-#include "sen_als.h"
 #endif
 
 #ifdef EN_SENSOR_PIR
@@ -39,9 +39,14 @@ Connections:
 
 */
 
+// Simple Direct Test
+// Uncomment this line to work in Simple Direct Test Mode
+#define ENABLE_SDTM
+
 // Xlight Application Identification
-#define XLA_VERSION               0x01
+#define XLA_VERSION               0x03
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
+
 // Choose Product Name & Type
 /// Sunny
 #if defined(XSUNNY)
@@ -77,6 +82,12 @@ Connections:
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
 
+#define ONOFF_RESET_TIMES               3       // on / off times to reset device
+#define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
+
+// Uncomment this line to enable CCT brightness quadratic function
+//#define CCT_BR_QUADRATIC_FUNC
+
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)
   #define     UNIQUE_ID_ADDRESS         (0x48CD)
@@ -99,8 +110,8 @@ uint8_t mStatus = SYS_INIT;
 bool mGotNodeID = FALSE;
 bool mGotPresented = FALSE;
 uint8_t mutex = 0;
-uint8_t rx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
-uint8_t tx_addr[ADDRESS_WIDTH] = {0x11, 0x11, 0x11, 0x11, 0x11};
+uint8_t rx_addr[ADDRESS_WIDTH];
+uint8_t tx_addr[ADDRESS_WIDTH];
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
 
@@ -178,18 +189,41 @@ uint8_t *Read_UniqueID(uint8_t *UniqueID, uint16_t Length)
   return UniqueID;
 }
 
+bool isIdentityEmpty(const UC *pId, UC nLen)
+{
+  for( int i = 0; i < nLen; i++ ) { if(pId[i] > 0) return FALSE; }
+  return TRUE;
+}
+
+bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen)
+{
+  for( int i = 0; i < nLen; i++ ) { if(pId1[i] != pId2[i]) return FALSE; }
+  return TRUE;
+}
+
+bool isNodeIdRequired()
+{
+  return( (IS_NOT_DEVICE_NODEID(gConfig.nodeID) && !IS_GROUP_NODEID(gConfig.nodeID)) || 
+         isIdentityEmpty(gConfig.NetworkID, ADDRESS_WIDTH) || isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) );
+}
+
 // Save config to Flash
 void SaveConfig()
 {
+#ifndef ENABLE_SDTM  
   if( gIsChanged ) {
     Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     gIsChanged = FALSE;
   }
+#endif  
 }
 
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
 void InitNodeAddress() {
-  gConfig.nodeID = BASESERVICE_ADDRESS; // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
+  // Whether has preset node id
+  if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) && !IS_GROUP_NODEID(gConfig.nodeID) ) {
+    gConfig.nodeID = BASESERVICE_ADDRESS; // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
+  }
   memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
 }
 
@@ -199,11 +233,12 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || IS_NOT_DEVICE_NODEID(gConfig.nodeID) || gConfig.type != XLA_PRODUCT_Type ) {
+       || gConfig.type != XLA_PRODUCT_Type || isNodeIdRequired()
+       || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
+      gConfig.nodeID = BASESERVICE_ADDRESS;
       InitNodeAddress();
-      gConfig.present = 0;
       gConfig.type = XLA_PRODUCT_Type;
       gConfig.ring[0].State = 1;
       gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
@@ -211,26 +246,51 @@ void LoadConfig()
       gConfig.ring[0].CCT = CT_MIN_VALUE;
 #else
       gConfig.ring[0].CCT = 0;
+      gConfig.ring[0].R = 128;
+      gConfig.ring[0].G = 64;
+      gConfig.ring[0].B = 100;
 #endif      
-      gConfig.ring[0].R = 0;
-      gConfig.ring[0].G = 0;
-      gConfig.ring[0].B = 0;
       gConfig.ring[1] = gConfig.ring[0];
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
       gConfig.hasSiblingMCU = 0;
       sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
-      gIsChanged = TRUE;
-      SaveConfig();
+      
+      gConfig.senMap = 0;
+#ifdef EN_SENSOR_ALS
+      gConfig.senMap |= sensorALS;
+#endif
+#ifdef EN_SENSOR_PIR
+      gConfig.senMap |= sensorPIR;
+#endif
+#ifdef EN_SENSOR_DHT
+      gConfig.senMap |= sensorDHT;
+#endif      
+      gConfig.funcMap = 0;
+      gConfig.alsLevel[0] = 70;
+      gConfig.alsLevel[1] = 80;
+      gConfig.pirLevel[0] = 0;
+      gConfig.pirLevel[1] = 0;
+
+      //gIsChanged = TRUE;
+      //SaveConfig();
     }
+    
+    // Engineering Code
+    //gConfig.nodeID = BASESERVICE_ADDRESS;
+    //gConfig.swTimes = 0;
 }
 
 void UpdateNodeAddress(void) {
   memcpy(rx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
   rx_addr[0] = gConfig.nodeID;
   memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
-  tx_addr[0] = (gConfig.nodeID >= BASESERVICE_ADDRESS ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+#ifdef ENABLE_SDTM  
+  tx_addr[0] = NODEID_MIN_REMOTE;
+#else
+  tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+#endif  
   RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
@@ -239,6 +299,23 @@ bool WaitMutex(uint32_t _timeout) {
     if( idleProcess() > 0 ) return TRUE;
   }
   return FALSE;
+}
+
+uint8_t GetSteps(uint32_t _from, uint32_t _to, bool _fast)
+{
+  uint8_t _step = BRIGHTNESS_STEP;
+  uint32_t _gap;
+  if( _from > _to ) {
+    _gap = _from - _to;
+  } else {
+    _gap = _to - _from;
+  }
+  // Max 40 times
+  uint8_t _maxSteps = (_fast ? MAX_FASTSTEP_TIMES: MAX_STEP_TIMES);
+  if( _step * _maxSteps < _gap ) {
+    _step = _gap / _maxSteps + 1;
+  }
+  return _step;
 }
 
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
@@ -261,11 +338,13 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   // Func 2
   // y = (100 - b) * x * x / 10000 + b
   // , where b = LIGHT_PWM_THRESHOLD
+#ifdef CCT_BR_QUADRATIC_FUNC
   if( ucBright > 0 ) {
     //float rootBright = sqrt(ucBright);
     //ucBright = (uint32_t)((100 - LIGHT_PWM_THRESHOLD) * ucBright * rootBright / 1000 + LIGHT_PWM_THRESHOLD + 0.5);
     ucBright = (100 - LIGHT_PWM_THRESHOLD) * ucBright * ucBright / 10000 + LIGHT_PWM_THRESHOLD + 0.5;
   }
+#endif
   
   pwm_Warm = (1000 - ucWarmCold)*ucBright/1000 ;
   pwm_Cold = ucWarmCold*ucBright/1000 ;
@@ -321,7 +400,7 @@ bool SayHelloToDevice(bool infinate) {
   while(1) {
     if( _count++ == 0 ) {
       
-      if( IS_NOT_DEVICE_NODEID(gConfig.nodeID) ) {
+      if( isNodeIdRequired() ) {
         mStatus = SYS_WAIT_NODEID;
       } else {
         mStatus = SYS_WAIT_PRESENTED;
@@ -363,13 +442,20 @@ bool SayHelloToDevice(bool infinate) {
 
     // Can't presented for a few times, then try request NodeID again
     // Either because SmartController is off, or changed
-    if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= 5 ) {
+    if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= REGISTER_RESET_TIMES && REGISTER_RESET_TIMES < 100 ) {
       _presentCnt = 0;
       // Reset RF Address
       InitNodeAddress();
       UpdateNodeAddress();
       mStatus = SYS_WAIT_NODEID;
       _doNow = TRUE;
+    }
+    
+    // Reset switch count
+    if( _count >= 10 && gConfig.swTimes > 0 ) {
+      gConfig.swTimes = 0;
+      gIsChanged = TRUE;
+      SaveConfig();
     }
     
     if( _doNow ) {
@@ -390,18 +476,21 @@ bool SayHelloToDevice(bool infinate) {
 }
 
 int main( void ) {
+  uint8_t lv_Brightness;
+
 #ifdef EN_SENSOR_ALS
-   static uint8_t pre_als_value = 0;
+   uint8_t pre_als_value = 0;
    uint8_t als_value;
    uint16_t als_tick = 0;
+   uint8_t lv_steps;
+   bool lv_preBRChanged;
 #endif
 
 #ifdef EN_SENSOR_PIR
-   static bool pre_pir_st = FALSE;
+   bool pre_pir_st = FALSE;
    bool pir_st;
    uint16_t pir_tick = 0;
 #endif
-   
    
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
@@ -413,25 +502,35 @@ int main( void ) {
   initTim2PWMFunction();
 
   // Init sensors
-#ifdef EN_SENSOR_ALS  
-  als_init();
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
+  ADC1_PinInit();
 #endif
 #ifdef EN_SENSOR_PIR
   pir_init();
-#endif  
+#endif
   
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
   LoadConfig();
 
+  // on / off 3 times to reset device
+  gConfig.swTimes++;
+  if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
+    gConfig.swTimes = 0;
+    gConfig.nodeID = BASESERVICE_ADDRESS;
+    InitNodeAddress();
+  }
+  gIsChanged = TRUE;
+  SaveConfig();
+  
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC  
   // Init ADC
-#ifdef EN_SENSOR_ALS  
   ADC1_Config();
 #endif  
   
   // Init serial ports
-  uart2_config();
+  //uart2_config();
   
   while(1) {
     // Go on only if NRF chip is presented
@@ -458,8 +557,21 @@ int main( void ) {
     // IRQ
     NRF2401_EnableIRQ();
   
+#ifdef ENABLE_SDTM
+    gConfig.nodeID = BASESERVICE_ADDRESS;
+    memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
+    UpdateNodeAddress();
+    Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
+    SendMyMessage();
+    mStatus = SYS_RUNNING;
+#else  
     // Must establish connection firstly
     SayHelloToDevice(TRUE);
+    gConfig.swTimes = 0;
+    gIsChanged = TRUE;
+    SaveConfig();
+#endif
+    
   
     while (mStatus == SYS_RUNNING) {
       // Feed the Watchdog
@@ -468,33 +580,87 @@ int main( void ) {
       // Read sensors
 #ifdef EN_SENSOR_PIR
       /// Read PIR
-      if( !bMsgReady && !pir_tick ) {
-        // Reset read timer
-        pir_tick = SEN_READ_PIR;
-        pir_st = pir_read();
-        if( pre_pir_st != pir_st ) {
-          // Send detection message
-          pre_pir_st = pir_st;
-          Msg_SenPIR(pre_pir_st);
+      if( gConfig.senMap & sensorPIR ) {
+        if( !bMsgReady && !pir_tick ) {
+          // Reset read timer
+          pir_tick = SEN_READ_PIR;
+          pir_st = pir_read();
+          if( pre_pir_st != pir_st ) {
+            // Send detection message
+            pre_pir_st = pir_st;
+            Msg_SenPIR(pre_pir_st);
+            // Action
+            if( gConfig.funcMap & controlPIR ) {
+              SendMyMessage();
+              if(  gConfig.pirLevel[0] == 0 && gConfig.pirLevel[1] == 0 ) {
+                SetDeviceOnOff(pir_st, RING_ID_ALL);
+              } else {
+                if( pir_st ) {
+                  lv_Brightness = gConfig.pirLevel[1];
+                  if( lv_Brightness > 100 ) { 
+                    DEVST_Bright += (lv_Brightness - 100);
+                  } else {
+                    DEVST_Bright = lv_Brightness;
+                  }
+                } else {
+                  lv_Brightness = gConfig.pirLevel[0];
+                  if( lv_Brightness > 100 ) { 
+                    DEVST_Bright -= (lv_Brightness - 100);
+                  } else {
+                    DEVST_Bright = lv_Brightness;
+                  }
+                }
+                ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
+                gIsChanged = TRUE;
+              }
+              Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+            }
+          }
+        } else if( pir_tick > 0 ) {
+          pir_tick--;
         }
-      } else if( pir_tick > 0 ) {
-        pir_tick--;
       }
 #endif
 
 #ifdef EN_SENSOR_ALS
       /// Read ALS
-      if( !bMsgReady && !als_tick ) {
-        // Reset read timer
-        als_tick = SEN_READ_ALS;
-        als_value = als_read();
-        if( pre_als_value != als_value ) {
-          // Send brightness message
-          pre_als_value = als_value;
-          Msg_SenALS(pre_als_value);
+      if( gConfig.senMap & sensorALS ) {
+        if( !bMsgReady && !als_tick ) {
+          // Reset read timer
+          als_tick = SEN_READ_ALS;
+          als_value = als_read();
+          if( pre_als_value != als_value ) {
+            // Send brightness message
+            pre_als_value = als_value;
+            Msg_SenALS(pre_als_value);
+          }
+          
+          // Action
+          if( gConfig.funcMap & controlALS ) {
+            if( DEVST_OnOff ) {
+              lv_Brightness = 0;
+              if( als_value < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
+                lv_steps = GetSteps(als_value, gConfig.alsLevel[0], TRUE);
+                lv_Brightness = DEVST_Bright + lv_steps;
+              } else if( als_value > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
+                lv_steps = GetSteps(als_value, gConfig.alsLevel[1], TRUE);
+                lv_Brightness = (DEVST_Bright > lv_steps ? DEVST_Bright - lv_steps : 0);
+              }
+              if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
+                DEVST_Bright = lv_Brightness;
+                ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
+                lv_preBRChanged = TRUE;
+              } else if( lv_preBRChanged ) {
+                lv_preBRChanged = FALSE;
+                gIsChanged = TRUE;
+                SendMyMessage();
+                Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+              }
+            }
+          }
+        } else if( als_tick > 0 ) {
+          als_tick--;
         }
-      } else if( als_tick > 0 ) {
-        als_tick--;
       }
 #endif
       
@@ -689,7 +855,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
-    delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
+    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
@@ -738,7 +904,8 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
-    delay_step[DELAY_TIM_ONOFF] = BRIGHTNESS_STEP;
+    // Get Step
+    delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
     delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
@@ -775,7 +942,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     delay_from[DELAY_TIM_BR] = RINGST_Bright(r_index);
     delay_to[DELAY_TIM_BR] = _br;
     delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
-    delay_step[DELAY_TIM_BR] = BRIGHTNESS_STEP;
+    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR], FALSE);
 #endif
     
     bool newSW = (_br >= BR_MIN_VALUE);
@@ -807,7 +974,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     delay_from[DELAY_TIM_BR] = DEVST_Bright;
     delay_to[DELAY_TIM_BR] = _br;
     delay_up[DELAY_TIM_BR] = (delay_from[DELAY_TIM_BR] < delay_to[DELAY_TIM_BR]);
-    delay_step[DELAY_TIM_BR] = BRIGHTNESS_STEP;
+    delay_step[DELAY_TIM_BR] = GetSteps(delay_from[DELAY_TIM_BR], delay_to[DELAY_TIM_BR], FALSE);
 #endif
     
     bool newSW = (_br >= BR_MIN_VALUE);
@@ -1178,6 +1345,15 @@ bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uin
 #endif  
 }
 
+bool SetDeviceFilter(uint8_t _filter) {
+  if( _filter != gConfig.filter ) {
+    gConfig.filter = _filter;
+    gIsChanged = TRUE;
+    return TRUE;
+  }
+  return FALSE;
+}
+
 bool isTimerCompleted(uint8_t _tmr) {
   bool bFinished;
   
@@ -1212,8 +1388,12 @@ bool isTimerCompleted(uint8_t _tmr) {
       bFinished = ( delay_from[_tmr] >= delay_to[_tmr] );
     } else {
       // Down
-      delay_from[_tmr] -= delay_step[_tmr];
-      bFinished = ( delay_from[_tmr] <= delay_to[_tmr] );
+      if( delay_from[_tmr] > delay_to[_tmr] + delay_step[_tmr] ) {
+        delay_from[_tmr] -= delay_step[_tmr];
+        bFinished = FALSE;
+      } else {
+        bFinished = TRUE;
+      }
     }
   }
   
@@ -1243,11 +1423,17 @@ uint8_t idleProcess() {
         if( isTimerCompleted(_tmr) ) {
           // Stop timer - disable further operation
           BF_SET(delay_func, 0, _tmr, 1);
+          
+          // Special effect
+          if( _tmr <= DELAY_TIM_RGB && DEVST_OnOff == DEVICE_SW_ON && gConfig.filter > 0 ) {
+            
+          }
         }
       } else {
         // Timer not reached, tick it
         delay_tick[_tmr]--;
       }
+      break; // Only one time at a time
     }
   }
   
