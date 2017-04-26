@@ -39,10 +39,6 @@ Connections:
 
 */
 
-// Simple Direct Test
-// Uncomment this line to work in Simple Direct Test Mode
-#define ENABLE_SDTM
-
 // Xlight Application Identification
 #define XLA_VERSION               0x03
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
@@ -86,7 +82,7 @@ Connections:
 #define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
 
 // Uncomment this line to enable CCT brightness quadratic function
-//#define CCT_BR_QUADRATIC_FUNC
+#define CCT_BR_QUADRATIC_FUNC
 
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)
@@ -242,7 +238,7 @@ void LoadConfig()
       gConfig.type = XLA_PRODUCT_Type;
       gConfig.ring[0].State = 1;
       gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
-#if defined(XSUNNY)      
+#if defined(XSUNNY)
       gConfig.ring[0].CCT = CT_MIN_VALUE;
 #else
       gConfig.ring[0].CCT = 0;
@@ -546,6 +542,7 @@ int main( void ) {
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
       DEVST_OnOff = 0;      // Ensure to turn on the light at next step
+      SetDeviceFilter(gConfig.filter);
       SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
       //delay_ms(1500);   // about 1.5 sec
       WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
@@ -572,7 +569,6 @@ int main( void ) {
     SaveConfig();
 #endif
     
-  
     while (mStatus == SYS_RUNNING) {
       // Feed the Watchdog
       feed_wwdg();
@@ -1345,12 +1341,51 @@ bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uin
 #endif  
 }
 
+// Start breathing effect
+void StartDeviceBreath(bool _init, bool _fast) {
+   // Smoothly change brightness - set parameters
+  if( _init || delay_to[DELAY_TIM_BR] > BR_MIN_VALUE ) {
+    delay_from[DELAY_TIM_BR] = DEVST_Bright;
+    delay_to[DELAY_TIM_BR] = BR_MIN_VALUE;    
+    delay_up[DELAY_TIM_BR] = FALSE;
+  } else {
+    delay_from[DELAY_TIM_BR] = BR_MIN_VALUE;
+    delay_to[DELAY_TIM_BR] = DEVST_Bright;
+    delay_up[DELAY_TIM_BR] = TRUE;
+  }
+  delay_step[DELAY_TIM_BR] = GetSteps(BR_MIN_VALUE, DEVST_Bright, TRUE);
+    
+  // Smoothly change brightness - set timer
+  delay_timer[DELAY_TIM_BR] = (_fast ? 0xAFF : 0x2FFF);
+  delay_tick[DELAY_TIM_BR] = 0x1FFFF;
+  delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
+  delay_tag[DELAY_TIM_BR] = RING_ID_ALL;
+  if( DEVST_OnOff == DEVICE_SW_ON ) BF_SET(delay_func, 1, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
+}
+
 bool SetDeviceFilter(uint8_t _filter) {
+  // Start filter
+  if( _filter == FILTER_SP_EF_BREATH || _filter == FILTER_SP_EF_FAST_BREATH ) {
+    // Set brightness to lowest, then restore back
+    StartDeviceBreath(TRUE, _filter == FILTER_SP_EF_FAST_BREATH);
+  }
+#if defined(XRAINBOW) || defined(XMIRAGE)    
+  else if( _filter == FILTER_SP_EF_FLORID || _filter == FILTER_SP_EF_FAST_FLORID ) {
+  }
+#endif
+
   if( _filter != gConfig.filter ) {
     gConfig.filter = _filter;
     gIsChanged = TRUE;
+    if( _filter == FILTER_SP_EF_NONE ) {
+      // Stop Timers
+      BF_SET(delay_func, 0, DELAY_TIM_ONOFF, 4);
+      // Restore normal brightness
+      ChangeDeviceBR(DEVST_Bright, RING_ID_ALL);
+    }
     return TRUE;
   }
+
   return FALSE;
 }
 
@@ -1426,7 +1461,13 @@ uint8_t idleProcess() {
           
           // Special effect
           if( _tmr <= DELAY_TIM_RGB && DEVST_OnOff == DEVICE_SW_ON && gConfig.filter > 0 ) {
-            
+            if( gConfig.filter == FILTER_SP_EF_BREATH || gConfig.filter == FILTER_SP_EF_FAST_BREATH ) {
+              StartDeviceBreath(FALSE, gConfig.filter == FILTER_SP_EF_FAST_BREATH);
+            }
+#if defined(XRAINBOW) || defined(XMIRAGE)    
+            else if( gConfig.filter == FILTER_SP_EF_FLORID || gConfig.filter == FILTER_SP_EF_FAST_FLORID ) {
+            }
+#endif
           }
         }
       } else {

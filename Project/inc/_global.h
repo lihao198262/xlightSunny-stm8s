@@ -7,6 +7,10 @@
 #include "stm8s_conf.h"
 
 /* Exported types ------------------------------------------------------------*/
+// Simple Direct Test
+// Uncomment this line to work in Simple Direct Test Mode
+//#define ENABLE_SDTM
+
 // Include Sensors
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
@@ -98,7 +102,7 @@
 #define DEFAULT_BRIGHTNESS      65
 #define BRIGHTNESS_STEP         1
 #define MAX_STEP_TIMES          51
-#define MAX_FASTSTEP_TIMES      10
+#define MAX_FASTSTEP_TIMES      20
 #define CCT_STEP                50
 #define RGB_STEP                3
 
