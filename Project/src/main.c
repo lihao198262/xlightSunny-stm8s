@@ -78,6 +78,13 @@ Connections:
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
 
+// Keep alive message interval, around 6 seconds
+#define RTE_TM_KEEP_ALIVE               0x03FF
+
+// Sensor reading duration
+#define SEN_READ_ALS                    0xFFFF
+#define SEN_READ_PIR                    0x1FFF
+
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
 
@@ -116,6 +123,9 @@ uint8_t USART_ReceiveDataBuf[32];
 uint8_t Buff_Cnt;
 uint8_t USART_FLAG;
 uint8_t RX_TX_BUFF = 0;
+
+// Keep Alive Timer
+uint16_t mTimerKeepAlive = 0;
 
 // Delayed operation in function idleProcess()
 typedef void (*OnTick_t)(uint32_t, uint8_t);  // Operation callback function typedef
@@ -370,6 +380,9 @@ bool SendMyMessage() {
     // Switch back to receive mode
     bMsgReady = 0;
     RF24L01_set_mode_RX();
+    
+    // Reset Keep Alive Timer
+    mTimerKeepAlive = 0;
   }
 
   return(mutex > 0);
@@ -569,7 +582,9 @@ int main( void ) {
     SaveConfig();
 #endif
     
+    uint8_t mIdle_tick = 0;
     while (mStatus == SYS_RUNNING) {
+      
       // Feed the Watchdog
       feed_wwdg();
       
@@ -659,6 +674,17 @@ int main( void ) {
         }
       }
 #endif
+      
+      // Idle Tick
+      if( !bMsgReady ) {
+        mIdle_tick++;
+        // Check Keep Alive Timer
+        if( mIdle_tick == 0 ) {
+          if( ++mTimerKeepAlive > RTE_TM_KEEP_ALIVE ) {
+            Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+          }
+        }
+      }
       
       // Send message if ready
       SendMyMessage();
