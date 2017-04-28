@@ -111,7 +111,6 @@ uint8_t _uniqueID[UNIQUE_ID_LEN];
 // Moudle variables
 uint8_t mStatus = SYS_INIT;
 bool mGotNodeID = FALSE;
-bool mGotPresented = FALSE;
 uint8_t mutex = 0;
 uint8_t rx_addr[ADDRESS_WIDTH];
 uint8_t tx_addr[ADDRESS_WIDTH];
@@ -395,7 +394,7 @@ void GotNodeID() {
 }
 
 void GotPresented() {
-  mGotPresented = TRUE;
+  mStatus = SYS_RUNNING;
 }
 
 bool SayHelloToDevice(bool infinate) {
@@ -406,33 +405,27 @@ bool SayHelloToDevice(bool infinate) {
   // Update RF addresses and Setup RF environment
   UpdateNodeAddress();
 
-  while(1) {
+  while(mStatus < SYS_RUNNING) {
     if( _count++ == 0 ) {
       
       if( isNodeIdRequired() ) {
         mStatus = SYS_WAIT_NODEID;
-      } else {
-        mStatus = SYS_WAIT_PRESENTED;
-      }
-      
-      _doNow = FALSE;
-      if( mStatus == SYS_WAIT_NODEID ) {
+        mGotNodeID = FALSE;
         // Request for NodeID
         Msg_RequestNodeID();
-        mGotNodeID = FALSE;
       } else {
+        mStatus = SYS_WAIT_PRESENTED;
         // Send Presentation Message
         Msg_Presentation();
-        mGotPresented = FALSE;
         _presentCnt++;
       }
-      
+           
       if( !SendMyMessage() ) {
         if( !infinate ) return FALSE;
       } else {
         // Wait response
         uint16_t tick = 0xAFFF;
-        while(tick--) {
+        while(tick-- && mStatus < SYS_RUNNING) {
           // Feed the Watchdog
           feed_wwdg();
           if( mStatus == SYS_WAIT_NODEID && mGotNodeID ) {
@@ -441,14 +434,12 @@ bool SayHelloToDevice(bool infinate) {
             _doNow = TRUE;
             break;
           }
-          if( mStatus == SYS_WAIT_PRESENTED && mGotPresented ) {
-            mStatus = SYS_RUNNING;
-            return TRUE;
-          }
         }
       }
     }
 
+    if( mStatus == SYS_RUNNING ) return TRUE;
+    
     // Can't presented for a few times, then try request NodeID again
     // Either because SmartController is off, or changed
     if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= REGISTER_RESET_TIMES && REGISTER_RESET_TIMES < 100 ) {
@@ -1399,7 +1390,7 @@ bool SetDeviceFilter(uint8_t _filter) {
   else if( _filter == FILTER_SP_EF_FLORID || _filter == FILTER_SP_EF_FAST_FLORID ) {
   }
 #endif
-
+  
   if( _filter != gConfig.filter ) {
     gConfig.filter = _filter;
     gIsChanged = TRUE;
