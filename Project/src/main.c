@@ -1377,7 +1377,7 @@ void StartDeviceBreath(bool _init, bool _fast) {
   delay_tick[DELAY_TIM_BR] = 0x1FFFF;
   delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
   delay_tag[DELAY_TIM_BR] = RING_ID_ALL;
-  if( DEVST_OnOff == DEVICE_SW_ON ) BF_SET(delay_func, 1, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
+  BF_SET(delay_func, DEVST_OnOff, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
 }
 
 bool SetDeviceFilter(uint8_t _filter) {
@@ -1474,17 +1474,21 @@ uint8_t idleProcess() {
         // Move a step and execute operation
         if( isTimerCompleted(_tmr) ) {
           // Stop timer - disable further operation
-          BF_SET(delay_func, 0, _tmr, 1);
-          
-          // Special effect
-          if( _tmr <= DELAY_TIM_RGB && DEVST_OnOff == DEVICE_SW_ON && gConfig.filter > 0 ) {
-            if( gConfig.filter == FILTER_SP_EF_BREATH || gConfig.filter == FILTER_SP_EF_FAST_BREATH ) {
-              StartDeviceBreath(FALSE, gConfig.filter == FILTER_SP_EF_FAST_BREATH);
-            }
+          if( DEVST_OnOff != DEVICE_SW_ON ) {
+            BF_SET(delay_func, 0, DELAY_TIM_ONOFF, 4);
+          } else {
+            BF_SET(delay_func, 0, _tmr, 1);
+            
+            // Special effect
+            if( _tmr <= DELAY_TIM_RGB && gConfig.filter > 0 ) {
+              if( gConfig.filter == FILTER_SP_EF_BREATH || gConfig.filter == FILTER_SP_EF_FAST_BREATH ) {
+                StartDeviceBreath(FALSE, gConfig.filter == FILTER_SP_EF_FAST_BREATH);
+              }
 #if defined(XRAINBOW) || defined(XMIRAGE)    
-            else if( gConfig.filter == FILTER_SP_EF_FLORID || gConfig.filter == FILTER_SP_EF_FAST_FLORID ) {
-            }
+              else if( gConfig.filter == FILTER_SP_EF_FLORID || gConfig.filter == FILTER_SP_EF_FAST_FLORID ) {
+              }
 #endif
+            }
           }
         }
       } else {
