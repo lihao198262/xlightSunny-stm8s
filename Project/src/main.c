@@ -865,7 +865,11 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 #ifdef GRADUAL_ONOFF
 
     // Smoothly change brightness - set parameters
-    delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    if( _sw == DEVICE_SW_OFF && BF_GET(delay_func, DELAY_TIM_BR, 1) ) {
+      delay_from[DELAY_TIM_ONOFF] = delay_from[DELAY_TIM_BR];
+    } else {
+      delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    }
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
     delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
@@ -914,7 +918,11 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 #ifdef GRADUAL_ONOFF
 
     // Smoothly change brightness - set parameters
-    delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    if( _sw == DEVICE_SW_OFF && BF_GET(delay_func, DELAY_TIM_BR, 1) ) {
+      delay_from[DELAY_TIM_ONOFF] = delay_from[DELAY_TIM_BR];
+    } else {
+      delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    }
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
     // Get Step
@@ -1482,6 +1490,7 @@ uint8_t idleProcess() {
             // Special effect
             if( _tmr <= DELAY_TIM_RGB && gConfig.filter > 0 ) {
               if( gConfig.filter == FILTER_SP_EF_BREATH || gConfig.filter == FILTER_SP_EF_FAST_BREATH ) {
+                if( _tmr == DELAY_TIM_ONOFF ) delay_to[DELAY_TIM_BR] = DEVST_Bright;
                 StartDeviceBreath(FALSE, gConfig.filter == FILTER_SP_EF_FAST_BREATH);
               }
 #if defined(XRAINBOW) || defined(XMIRAGE)    
