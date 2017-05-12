@@ -193,7 +193,7 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
 
   RF24L01_reg_RF_SETUP_content RF_SETUP;
   *((uint8_t *)&RF_SETUP) = 0;
-  RF_SETUP.RF_PWR = 0x01;   // 01: Low. 03: Max
+  RF_SETUP.RF_PWR = 0x03;   // 01: Low. 03: Max
   // '00' is 1Mbs, '01' is 2Mbs, '10' is 250Kbs
   RF_SETUP.RF_DR_LOW = 0x00;
   RF_SETUP.RF_DR_HIGH = 0x00;

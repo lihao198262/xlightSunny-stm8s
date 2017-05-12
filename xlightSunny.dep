@@ -247,6 +247,10 @@
       </outputs>
       <inputs>
         <tool>
+          <name>BICOMP</name>
+          <file> 79 109 114 18 8 22 100 17 24 11 39 43 16 76 9 23 85 52 88 70 10</file>
+        </tool>
+        <tool>
           <name>ICCSTM8</name>
           <file> 17 79 39 16 109 76 22 9 18 23 100 85 114 52 88 8 24 70 10 11 43</file>
         </tool>
@@ -520,7 +524,7 @@
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 5 100 79 24 65 102 22 17 11 96 14 48 39 43 109 18 114 8 92 126 51 2 87 16 76 9 23 85 52 88 70 10 15 122</file>
+          <file> 100 79 5 102 24 65 22 17 11 96 14 48 39 43 109 18 114 8 92 126 51 2 87 16 76 9 23 85 52 88 70 10 15 122</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
@@ -566,11 +570,11 @@
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 45 23 79 96 13 39 2 49 33 102 76 52 10 92 51 87 5 7 46 14 41 48 43 16 9 85 88 70 122 65 109 22 18 100 114 17 8 24 11 15 126</file>
+          <file> 79 45 18 13 41 48 8 5 49 33 39 109 114 87 96 7 46 14 102 22 100 17 24 11 15 126 43 16 76 9 23 85 52 88 70 10 92 122 51 2 65</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
-          <file> 5 79 39 16 109 76 22 9 18 23 100 85 114 52 17 88 8 24 70 10 11 43 48 96 87 122 2 65 126 51 92 15 102 13 49 7 45 46 14 33 6</file>
+          <file> 5 79 39 16 109 76 22 9 18 23 100 85 114 52 17 88 8 24 70 10 11 43 48 96 87 122 2 65 126 51 92 15 102 13 49 7 45 46 14 33 41</file>
         </tool>
       </inputs>
     </file>
@@ -589,7 +593,7 @@
       <inputs>
         <tool>
           <name>BICOMP</name>
-          <file> 79 126 100 14 24 96 7 45 102 22 17 11 15 87 5 48 39 109 18 114 8 46 43 16 76 9 23 85 52 88 70 10 92 122 51 2 65</file>
+          <file> 15 87 79 17 14 22 11 7 45 102 100 24 126 96 5 48 39 109 18 114 8 46 43 16 76 9 23 85 52 88 70 10 92 122 51 2 65</file>
         </tool>
         <tool>
           <name>ICCSTM8</name>
@@ -741,78 +745,6 @@
         </tool>
       </inputs>
     </file>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_wwdg.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_adc1.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_clk.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_spi.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim2.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_exti.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_flash.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_gpio.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim3.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_uart2.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\rf24l01.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\Uart2Dev.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\delay.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\sen_pir.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\LightPwmDrv.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\ADC1Dev.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\main.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
-    <forcedrebuild>
-      <name>$PROJ_DIR$\Project\src\ProtocolParser.c</name>
-      <tool>ICCSTM8</tool>
-    </forcedrebuild>
   </configuration>
   <configuration>
     <name>Release</name>

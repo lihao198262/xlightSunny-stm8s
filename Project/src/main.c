@@ -79,7 +79,7 @@ Connections:
 #define SYS_RUNNING                     5
 
 // Keep alive message interval, around 6 seconds
-#define RTE_TM_KEEP_ALIVE               0x03FF
+#define RTE_TM_KEEP_ALIVE               0x02FF
 
 // Sensor reading duration
 #define SEN_READ_ALS                    0xFFFF
