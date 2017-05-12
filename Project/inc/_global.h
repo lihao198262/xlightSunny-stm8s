@@ -15,9 +15,11 @@
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
 //#define EN_SENSOR_MIC
-//#define EN_SENSOR_PIR
+#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
+//#define EN_SENSOR_MQ2
+//#define EN_SENSOR_MQ7
 
 // Common Data Type
 #define UC                        uint8_t
@@ -163,8 +165,6 @@ typedef struct
 extern Config_t gConfig;
 extern bool gIsChanged;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
-extern uint16_t pwm_Warm;
-extern uint16_t pwm_Cold;
 
 void GotNodeID();
 void GotPresented();
