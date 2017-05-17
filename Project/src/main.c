@@ -39,10 +39,6 @@ Connections:
 
 */
 
-// Simple Direct Test
-// Uncomment this line to work in Simple Direct Test Mode
-#define ENABLE_SDTM
-
 // Xlight Application Identification
 #define XLA_VERSION               0x03
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
@@ -82,11 +78,18 @@ Connections:
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
 
+// Keep alive message interval, around 6 seconds
+#define RTE_TM_KEEP_ALIVE               0x02FF
+
+// Sensor reading duration
+#define SEN_READ_ALS                    0xFFFF
+#define SEN_READ_PIR                    0x1FFF
+
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
 
 // Uncomment this line to enable CCT brightness quadratic function
-//#define CCT_BR_QUADRATIC_FUNC
+#define CCT_BR_QUADRATIC_FUNC
 
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)
@@ -108,7 +111,6 @@ uint8_t _uniqueID[UNIQUE_ID_LEN];
 // Moudle variables
 uint8_t mStatus = SYS_INIT;
 bool mGotNodeID = FALSE;
-bool mGotPresented = FALSE;
 uint8_t mutex = 0;
 uint8_t rx_addr[ADDRESS_WIDTH];
 uint8_t tx_addr[ADDRESS_WIDTH];
@@ -120,6 +122,9 @@ uint8_t USART_ReceiveDataBuf[32];
 uint8_t Buff_Cnt;
 uint8_t USART_FLAG;
 uint8_t RX_TX_BUFF = 0;
+
+// Keep Alive Timer
+uint16_t mTimerKeepAlive = 0;
 
 // Delayed operation in function idleProcess()
 typedef void (*OnTick_t)(uint32_t, uint8_t);  // Operation callback function typedef
@@ -242,7 +247,7 @@ void LoadConfig()
       gConfig.type = XLA_PRODUCT_Type;
       gConfig.ring[0].State = 1;
       gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
-#if defined(XSUNNY)      
+#if defined(XSUNNY)
       gConfig.ring[0].CCT = CT_MIN_VALUE;
 #else
       gConfig.ring[0].CCT = 0;
@@ -374,6 +379,9 @@ bool SendMyMessage() {
     // Switch back to receive mode
     bMsgReady = 0;
     RF24L01_set_mode_RX();
+    
+    // Reset Keep Alive Timer
+    mTimerKeepAlive = 0;
   }
 
   return(mutex > 0);
@@ -386,7 +394,7 @@ void GotNodeID() {
 }
 
 void GotPresented() {
-  mGotPresented = TRUE;
+  mStatus = SYS_RUNNING;
 }
 
 bool SayHelloToDevice(bool infinate) {
@@ -397,33 +405,27 @@ bool SayHelloToDevice(bool infinate) {
   // Update RF addresses and Setup RF environment
   UpdateNodeAddress();
 
-  while(1) {
+  while(mStatus < SYS_RUNNING) {
     if( _count++ == 0 ) {
       
       if( isNodeIdRequired() ) {
         mStatus = SYS_WAIT_NODEID;
-      } else {
-        mStatus = SYS_WAIT_PRESENTED;
-      }
-      
-      _doNow = FALSE;
-      if( mStatus == SYS_WAIT_NODEID ) {
+        mGotNodeID = FALSE;
         // Request for NodeID
         Msg_RequestNodeID();
-        mGotNodeID = FALSE;
       } else {
+        mStatus = SYS_WAIT_PRESENTED;
         // Send Presentation Message
         Msg_Presentation();
-        mGotPresented = FALSE;
         _presentCnt++;
       }
-      
+           
       if( !SendMyMessage() ) {
         if( !infinate ) return FALSE;
       } else {
         // Wait response
         uint16_t tick = 0xAFFF;
-        while(tick--) {
+        while(tick-- && mStatus < SYS_RUNNING) {
           // Feed the Watchdog
           feed_wwdg();
           if( mStatus == SYS_WAIT_NODEID && mGotNodeID ) {
@@ -432,14 +434,12 @@ bool SayHelloToDevice(bool infinate) {
             _doNow = TRUE;
             break;
           }
-          if( mStatus == SYS_WAIT_PRESENTED && mGotPresented ) {
-            mStatus = SYS_RUNNING;
-            return TRUE;
-          }
         }
       }
     }
 
+    if( mStatus == SYS_RUNNING ) return TRUE;
+    
     // Can't presented for a few times, then try request NodeID again
     // Either because SmartController is off, or changed
     if(  mStatus == SYS_WAIT_PRESENTED && _presentCnt >= REGISTER_RESET_TIMES && REGISTER_RESET_TIMES < 100 ) {
@@ -546,6 +546,7 @@ int main( void ) {
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
       DEVST_OnOff = 0;      // Ensure to turn on the light at next step
+      SetDeviceFilter(gConfig.filter);
       SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
       //delay_ms(1500);   // about 1.5 sec
       WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
@@ -572,8 +573,9 @@ int main( void ) {
     SaveConfig();
 #endif
     
-  
+    uint8_t mIdle_tick = 0;
     while (mStatus == SYS_RUNNING) {
+      
       // Feed the Watchdog
       feed_wwdg();
       
@@ -663,6 +665,17 @@ int main( void ) {
         }
       }
 #endif
+      
+      // Idle Tick
+      if( !bMsgReady ) {
+        mIdle_tick++;
+        // Check Keep Alive Timer
+        if( mIdle_tick == 0 ) {
+          if( ++mTimerKeepAlive > RTE_TM_KEEP_ALIVE ) {
+            Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+          }
+        }
+      }
       
       // Send message if ready
       SendMyMessage();
@@ -852,7 +865,11 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 #ifdef GRADUAL_ONOFF
 
     // Smoothly change brightness - set parameters
-    delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    if( _sw == DEVICE_SW_OFF && BF_GET(delay_func, DELAY_TIM_BR, 1) ) {
+      delay_from[DELAY_TIM_ONOFF] = delay_from[DELAY_TIM_BR];
+    } else {
+      delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    }
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
     delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
@@ -901,7 +918,11 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 #ifdef GRADUAL_ONOFF
 
     // Smoothly change brightness - set parameters
-    delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    if( _sw == DEVICE_SW_OFF && BF_GET(delay_func, DELAY_TIM_BR, 1) ) {
+      delay_from[DELAY_TIM_ONOFF] = delay_from[DELAY_TIM_BR];
+    } else {
+      delay_from[DELAY_TIM_ONOFF] = (_sw ? BR_MIN_VALUE : _Brightness);
+    }
     delay_to[DELAY_TIM_ONOFF] = (_sw ? _Brightness : 0);
     delay_up[DELAY_TIM_ONOFF] = (delay_from[DELAY_TIM_ONOFF] < delay_to[DELAY_TIM_ONOFF]);
     // Get Step
@@ -1345,12 +1366,51 @@ bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uin
 #endif  
 }
 
+// Start breathing effect
+void StartDeviceBreath(bool _init, bool _fast) {
+   // Smoothly change brightness - set parameters
+  if( _init || delay_to[DELAY_TIM_BR] > BR_MIN_VALUE ) {
+    delay_from[DELAY_TIM_BR] = DEVST_Bright;
+    delay_to[DELAY_TIM_BR] = BR_MIN_VALUE;    
+    delay_up[DELAY_TIM_BR] = FALSE;
+  } else {
+    delay_from[DELAY_TIM_BR] = BR_MIN_VALUE;
+    delay_to[DELAY_TIM_BR] = DEVST_Bright;
+    delay_up[DELAY_TIM_BR] = TRUE;
+  }
+  delay_step[DELAY_TIM_BR] = GetSteps(BR_MIN_VALUE, DEVST_Bright, TRUE);
+    
+  // Smoothly change brightness - set timer
+  delay_timer[DELAY_TIM_BR] = (_fast ? 0xAFF : 0x2FFF);
+  delay_tick[DELAY_TIM_BR] = 0x1FFFF;
+  delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
+  delay_tag[DELAY_TIM_BR] = RING_ID_ALL;
+  BF_SET(delay_func, DEVST_OnOff, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
+}
+
 bool SetDeviceFilter(uint8_t _filter) {
+  // Start filter
+  if( _filter == FILTER_SP_EF_BREATH || _filter == FILTER_SP_EF_FAST_BREATH ) {
+    // Set brightness to lowest, then restore back
+    StartDeviceBreath(TRUE, _filter == FILTER_SP_EF_FAST_BREATH);
+  }
+#if defined(XRAINBOW) || defined(XMIRAGE)    
+  else if( _filter == FILTER_SP_EF_FLORID || _filter == FILTER_SP_EF_FAST_FLORID ) {
+  }
+#endif
+  
   if( _filter != gConfig.filter ) {
     gConfig.filter = _filter;
     gIsChanged = TRUE;
+    if( _filter == FILTER_SP_EF_NONE ) {
+      // Stop Timers
+      BF_SET(delay_func, 0, DELAY_TIM_ONOFF, 4);
+      // Restore normal brightness
+      ChangeDeviceBR(DEVST_Bright, RING_ID_ALL);
+    }
     return TRUE;
   }
+
   return FALSE;
 }
 
@@ -1422,11 +1482,22 @@ uint8_t idleProcess() {
         // Move a step and execute operation
         if( isTimerCompleted(_tmr) ) {
           // Stop timer - disable further operation
-          BF_SET(delay_func, 0, _tmr, 1);
-          
-          // Special effect
-          if( _tmr <= DELAY_TIM_RGB && DEVST_OnOff == DEVICE_SW_ON && gConfig.filter > 0 ) {
+          if( DEVST_OnOff != DEVICE_SW_ON ) {
+            BF_SET(delay_func, 0, DELAY_TIM_ONOFF, 4);
+          } else {
+            BF_SET(delay_func, 0, _tmr, 1);
             
+            // Special effect
+            if( _tmr <= DELAY_TIM_RGB && gConfig.filter > 0 ) {
+              if( gConfig.filter == FILTER_SP_EF_BREATH || gConfig.filter == FILTER_SP_EF_FAST_BREATH ) {
+                if( _tmr == DELAY_TIM_ONOFF ) delay_to[DELAY_TIM_BR] = DEVST_Bright;
+                StartDeviceBreath(FALSE, gConfig.filter == FILTER_SP_EF_FAST_BREATH);
+              }
+#if defined(XRAINBOW) || defined(XMIRAGE)    
+              else if( gConfig.filter == FILTER_SP_EF_FLORID || gConfig.filter == FILTER_SP_EF_FAST_FLORID ) {
+              }
+#endif
+            }
           }
         }
       } else {

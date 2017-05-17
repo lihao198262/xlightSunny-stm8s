@@ -193,7 +193,7 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
 
   RF24L01_reg_RF_SETUP_content RF_SETUP;
   *((uint8_t *)&RF_SETUP) = 0;
-  RF_SETUP.RF_PWR = 0x01;   // 01: Low. 03: Max
+  RF_SETUP.RF_PWR = 0x03;   // 01: Low. 03: Max
   // '00' is 1Mbs, '01' is 2Mbs, '10' is 250Kbs
   RF_SETUP.RF_DR_LOW = 0x00;
   RF_SETUP.RF_DR_HIGH = 0x00;
@@ -217,18 +217,17 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
   SETUP_RETR.ARD = rx_addr[0] % 14 + 2;    // [2..15]
   SETUP_RETR.ARC = 0x0f;
   RF24L01_write_register(RF24L01_reg_SETUP_RETR, ((uint8_t *)&SETUP_RETR), 1);  
-/*
+
   RF24L01_reg_DYNPD_content DYN_PAYLOAD;
   *((uint8_t *)&DYN_PAYLOAD) = 0;
-  DYN_PAYLOAD.DPL_P0 = 0x01;
+  //DYN_PAYLOAD.DPL_P0 = 0x01;
   RF24L01_write_register(RF24L01_reg_DYNPD, ((uint8_t *)&DYN_PAYLOAD), 1);  
-
+  
   RF24L01_reg_FEATURE_content RF_FEATURE;
   *((uint8_t *)&RF_FEATURE) = 0;
-  RF_FEATURE.EN_DPL = 0x01;
-  RF_FEATURE.EN_ACK_PAY = 0x01;
+  //RF_FEATURE.EN_DPL = 0x01;
+  //RF_FEATURE.EN_ACK_PAY = 0x01;
   RF24L01_write_register(RF24L01_reg_FEATURE, ((uint8_t *)&RF_FEATURE), 1);
-  */
 }
 
 void RF24L01_set_mode_TX(void) {

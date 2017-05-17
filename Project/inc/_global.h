@@ -7,13 +7,19 @@
 #include "stm8s_conf.h"
 
 /* Exported types ------------------------------------------------------------*/
+// Simple Direct Test
+// Uncomment this line to work in Simple Direct Test Mode
+//#define ENABLE_SDTM
+
 // Include Sensors
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
 //#define EN_SENSOR_MIC
-//#define EN_SENSOR_PIR
+#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
 //#define EN_SENSOR_MQ135
+//#define EN_SENSOR_MQ2
+//#define EN_SENSOR_MQ7
 
 // Common Data Type
 #define UC                        uint8_t
@@ -79,10 +85,6 @@
 
 #define UNIQUE_ID_LEN           8
 
-// Sensor reading duration
-#define SEN_READ_ALS            0xFFFF
-#define SEN_READ_PIR            0x1FFF
-
 // Delayed operation timers
 #define DELAY_TIMERS            8
 #define DELAY_TIM_ONOFF         0
@@ -98,7 +100,7 @@
 #define DEFAULT_BRIGHTNESS      65
 #define BRIGHTNESS_STEP         1
 #define MAX_STEP_TIMES          51
-#define MAX_FASTSTEP_TIMES      10
+#define MAX_FASTSTEP_TIMES      20
 #define CCT_STEP                50
 #define RGB_STEP                3
 
@@ -163,8 +165,6 @@ typedef struct
 extern Config_t gConfig;
 extern bool gIsChanged;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
-extern uint16_t pwm_Warm;
-extern uint16_t pwm_Cold;
 
 void GotNodeID();
 void GotPresented();
