@@ -13,10 +13,11 @@
 
 // Include Sensors
 /// Comment off line to disable sensor
-//#define EN_SENSOR_ALS
+#define EN_SENSOR_ALS
 //#define EN_SENSOR_MIC
-#define EN_SENSOR_PIR
+//#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
+#define EN_SENSOR_PM25
 //#define EN_SENSOR_MQ135
 //#define EN_SENSOR_MQ2
 //#define EN_SENSOR_MQ7
@@ -166,6 +167,7 @@ extern Config_t gConfig;
 extern bool gIsChanged;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
 
+bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen);
 void GotNodeID();
 void GotPresented();
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);

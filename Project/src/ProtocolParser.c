@@ -38,6 +38,12 @@ uint8_t ParseProtocol(){
       uint8_t lv_nodeID = _sensor;
       if( lv_nodeID == NODEID_GATEWAY || lv_nodeID == NODEID_DUMMY ) {
       } else {
+        if( miGetLength() > 8 ) {
+          // Verify _uniqueID        
+          if(!isIdentityEqual(_uniqueID, msg.payload.data+8, UNIQUE_ID_LEN)) {
+            return 0;
+          }
+        }
         gConfig.nodeID = lv_nodeID;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
         gIsChanged = TRUE;
