@@ -302,6 +302,7 @@ void UpdateNodeAddress(void) {
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
     if( idleProcess() > 0 ) return TRUE;
+    feed_wwdg();
   }
   return FALSE;
 }
@@ -361,7 +362,8 @@ bool SendMyMessage() {
     
     // delay to avoid conflict
     if( bDelaySend ) {
-      delay_ms(gConfig.nodeID % 25 * 10);
+      //delay_ms(gConfig.nodeID % 25 * 10);
+      WaitMutex(gConfig.nodeID * 100);
       bDelaySend = FALSE;
     }
 
@@ -468,7 +470,8 @@ bool SayHelloToDevice(bool infinate) {
     feed_wwdg();
     
     // Failed or Timeout, then repeat init-step
-    delay_ms(400);
+    //delay_ms(400);
+    WaitMutex(0x4FFF);
     _count %= 20;  // Every 10 seconds
   }
   
@@ -524,6 +527,9 @@ int main( void ) {
   gIsChanged = TRUE;
   SaveConfig();
   
+  // Init Watchdog
+  wwdg_init();
+  
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC  
   // Init ADC
   ADC1_Config();
@@ -535,7 +541,7 @@ int main( void ) {
   while(1) {
     // Go on only if NRF chip is presented
     RF24L01_init();
-    while(!NRF24L01_Check());
+    while(!NRF24L01_Check())feed_wwdg();
 
     // Try to communicate with sibling MCUs (STM8S003F), 
     /// if got response, which means the device supports indiviual ring control.
@@ -552,7 +558,7 @@ int main( void ) {
       WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
 
       // Init Watchdog
-      wwdg_init();
+      //wwdg_init();
     }
   
     // IRQ
@@ -616,6 +622,7 @@ int main( void ) {
                 gIsChanged = TRUE;
               }
               Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+              feed_wwdg();
             }
           }
         } else if( pir_tick > 0 ) {
@@ -657,6 +664,7 @@ int main( void ) {
                 gIsChanged = TRUE;
                 SendMyMessage();
                 Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+                feed_wwdg();
               }
             }
           }
