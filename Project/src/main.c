@@ -536,7 +536,7 @@ int main( void ) {
 #endif  
   
   // Init serial ports
-  //uart2_config();
+  //uart2_config(9600);
   
   while(1) {
     // Go on only if NRF chip is presented

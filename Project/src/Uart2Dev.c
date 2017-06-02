@@ -1,6 +1,6 @@
 #include "Uart2Dev.h"
 
-void uart2_config(uint32 speed)
+void uart2_config(uint32_t speed)
 {
   CLK_PeripheralClockConfig(CLK_PERIPHERAL_UART2, ENABLE);
   
