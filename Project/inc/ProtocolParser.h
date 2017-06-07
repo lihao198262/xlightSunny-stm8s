@@ -27,4 +27,8 @@ void Msg_SenALS(uint8_t _value);
 void Msg_SenPIR(bool _sw);
 #endif
 
+#ifdef EN_SENSOR_PM25
+void Msg_SenPM25(uint16_t _value);
+#endif
+
 #endif /* __PROTOCOL_PARSER_H */

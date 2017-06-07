@@ -114,6 +114,9 @@
         <name>$PROJ_DIR$\Project\inc\sen_pir.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\sen_pm25.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\stm8s_conf.h</name>
       </file>
       <file>
@@ -148,6 +151,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\sen_pir.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\sen_pm25.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\Uart2Dev.c</name>

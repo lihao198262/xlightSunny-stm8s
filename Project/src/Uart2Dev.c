@@ -16,7 +16,8 @@ void uart2_config(uint32_t speed)
   UART2_Cmd(ENABLE);
 
   /* Enable general interrupts */
-  enableInterrupts(); 
+  // Do it in main()
+  //enableInterrupts();
 }
 
 void Uart2SendByte(uint8_t data)

@@ -15,6 +15,10 @@
 #include "sen_pir.h"
 #endif
 
+#ifdef EN_SENSOR_PM25
+#include "sen_pm25.h"
+#endif
+
 /*
 License: MIT
 
@@ -40,7 +44,7 @@ Connections:
 */
 
 // Xlight Application Identification
-#define XLA_VERSION               0x03
+#define XLA_VERSION               0x05
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
 
 // Choose Product Name & Type
@@ -84,6 +88,7 @@ Connections:
 // Sensor reading duration
 #define SEN_READ_ALS                    0xFFFF
 #define SEN_READ_PIR                    0x1FFF
+#define SEN_READ_PM25                   0xFFFF
 
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
@@ -116,12 +121,6 @@ uint8_t rx_addr[ADDRESS_WIDTH];
 uint8_t tx_addr[ADDRESS_WIDTH];
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
-
-// USART
-uint8_t USART_ReceiveDataBuf[32];
-uint8_t Buff_Cnt;
-uint8_t USART_FLAG;
-uint8_t RX_TX_BUFF = 0;
 
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
@@ -238,8 +237,8 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.type != XLA_PRODUCT_Type || isNodeIdRequired()
-       || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
+       || gConfig.type != XLA_PRODUCT_Type || isNodeIdRequired() ) {
+       //|| strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       gConfig.nodeID = BASESERVICE_ADDRESS;
@@ -259,8 +258,8 @@ void LoadConfig()
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
       gConfig.hasSiblingMCU = 0;
-      sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
-      sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
+      //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
+      //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
       gConfig.senMap = 0;
 #ifdef EN_SENSOR_ALS
@@ -271,7 +270,11 @@ void LoadConfig()
 #endif
 #ifdef EN_SENSOR_DHT
       gConfig.senMap |= sensorDHT;
-#endif      
+#endif
+#ifdef EN_SENSOR_PM25
+      gConfig.senMap |= sensorDUST;
+#endif
+      
       gConfig.funcMap = 0;
       gConfig.alsLevel[0] = 70;
       gConfig.alsLevel[1] = 80;
@@ -285,6 +288,15 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
+#ifdef EN_SENSOR_ALS
+      gConfig.senMap |= sensorALS;
+#endif
+#ifdef EN_SENSOR_PIR
+      gConfig.senMap |= sensorPIR;
+#endif    
+#ifdef EN_SENSOR_PM25
+      gConfig.senMap |= sensorDUST;
+#endif    
 }
 
 void UpdateNodeAddress(void) {
@@ -495,6 +507,12 @@ int main( void ) {
    uint16_t pir_tick = 0;
 #endif
    
+#ifdef EN_SENSOR_PM25       
+   uint16_t lv_pm2_5 = 0;
+   uint16_t pm25_tick = 0;
+   uint8_t pm25_alivetick = 0;
+#endif   
+   
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
@@ -504,14 +522,6 @@ int main( void ) {
   // Init PWM Timers
   initTim2PWMFunction();
 
-  // Init sensors
-#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
-  ADC1_PinInit();
-#endif
-#ifdef EN_SENSOR_PIR
-  pir_init();
-#endif
-  
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
@@ -529,6 +539,17 @@ int main( void ) {
   
   // Init Watchdog
   wwdg_init();
+  
+  // Init sensors
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
+  ADC1_PinInit();
+#endif
+#ifdef EN_SENSOR_PIR
+  pir_init();
+#endif
+#ifdef EN_SENSOR_PM25
+  pm25_init();
+#endif
   
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC  
   // Init ADC
@@ -674,6 +695,31 @@ int main( void ) {
       }
 #endif
       
+#ifdef EN_SENSOR_PM25
+      if( gConfig.senMap & sensorDUST ) {
+        if( !bMsgReady && !pm25_tick ) {
+          pm25_tick = SEN_READ_PM25;
+          // Reset read timer
+          if( pm25_ready ) {
+            if( lv_pm2_5 != pm25_value ) {
+              lv_pm2_5 = pm25_value;
+              if( lv_pm2_5 < 5 ) lv_pm2_5 = 8;
+              // Send PM2.5 to Controller
+              Msg_SenPM25(lv_pm2_5);
+            } else if( pm25_alive ) {
+              pm25_alive = FALSE;
+              pm25_alivetick = 20;
+            } else if( --pm25_alivetick == 0 ) {
+              // Reset PM2.5 moudle or restart the node
+              mStatus = SYS_RESET;
+            }
+          }
+        } else if( pm25_tick > 0 ) {
+          pm25_tick--;
+        }
+      }
+#endif
+      
       // Idle Tick
       if( !bMsgReady ) {
         mIdle_tick++;
@@ -695,7 +741,7 @@ int main( void ) {
       idleProcess();
       
       // ToDo: Check heartbeats
-      // mStatus = SYS_REST, if timeout or received a value 3 times consecutively
+      // mStatus = SYS_RESET, if timeout or received a value 3 times consecutively
     }
   }
 }
@@ -819,6 +865,7 @@ void ChangeDeviceCCT(uint32_t _cct, uint8_t _ring) {
 
 // Immediately change wrgb
 void ChangeDeviceWRGB(uint32_t _wrgb, uint8_t _ring) {
+#if defined(XRAINBOW) || defined(XMIRAGE)
   uint8_t _w, _r, _g, _b;
   _b = (_wrgb & 0xff);
   _wrgb >>= 8;
@@ -830,14 +877,11 @@ void ChangeDeviceWRGB(uint32_t _wrgb, uint8_t _ring) {
   
 #ifdef RING_INDIVIDUAL_COLOR
   uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
-#if defined(XRAINBOW) || defined(XMIRAGE)
   ChangeDeviceStatus(TRUE, RINGST_Bright(r_index), _w, _r, _g, _b, _ring);
-#endif
 #else
-#if defined(XRAINBOW) || defined(XMIRAGE)
   ChangeDeviceStatus(TRUE, DEVST_Bright, _w, _r, _g, _b, _ring);
 #endif
-#endif
+#endif  
 }
 
 void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
@@ -1537,21 +1581,4 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
   }
 
    RF24L01_clear_interrupts();
-}
-
-INTERRUPT_HANDLER(UART2_RX_IRQHandler, 18)
-{
-  /* In order to detect unexpected events during development,
-  it is recommended to set a breakpoint on the following instruction.
-  */
-  if(UART2_GetITStatus(UART2_IT_RXNE) == SET) {
-    RX_TX_BUFF = UART2_ReceiveData8();
-    
-    USART_ReceiveDataBuf[Buff_Cnt++] = RX_TX_BUFF ;
-    if(RX_TX_BUFF == '\n') {
-      USART_FLAG = 1;
-      UART2_ClearITPendingBit(UART2_IT_RXNE);
-    }
-  }
-  //Buff_Cnt++;
 }

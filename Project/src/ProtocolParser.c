@@ -470,3 +470,15 @@ void Msg_SenPIR(bool _sw) {
   bMsgReady = 1;
 }
 #endif
+  
+#ifdef EN_SENSOR_PM25
+// Prepare PM2.5 message
+void Msg_SenPM25(uint16_t _value) {
+  build(NODEID_GATEWAY, S_DUST, C_PRESENTATION, V_LEVEL, 0, 0);
+  miSetPayloadType(P_UINT16);
+  miSetLength(2);
+  msg.payload.data[0] = _value % 256;
+  msg.payload.data[1] = _value / 256;
+  bMsgReady = 1;  
+}
+#endif
