@@ -146,7 +146,8 @@ typedef struct
   UC nodeID;                                // Node ID for this device
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
-  UC reserved                 :3;
+  UC enSDTM                   :1;           // Simple Direct Test Mode Flag
+  UC reserved                 :2;
   UC filter                   :4;
   UC type;                                  // Type of lamp
   US token;

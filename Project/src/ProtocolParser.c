@@ -53,6 +53,15 @@ uint8_t ParseProtocol(){
         Msg_DevBrightness(_sender, _sensor);
         return 1;
       }
+    } else if( _type == I_REBOOT ) {
+      if( _sensor == NODEID_GATEWAY ) {
+        // Verify token
+        if(!gConfig.present || gConfig.token == msg.payload.uiValue) {
+          // Soft reset
+          WWDG->CR = 0x80;
+        }
+        return 0;
+      }
     } else if( _type == I_CONFIG ) {
       // Node Config
       switch( _sensor ) {
@@ -62,6 +71,10 @@ uint8_t ParseProtocol(){
         return 1;
         break;
 
+      case NCF_DEV_EN_SDTM:
+        gConfig.enSDTM = msg.payload.data[0] + msg.payload.data[1] * 256;
+        break;
+        
       case NCF_MAP_SENSOR:
         gConfig.senMap = msg.payload.data[0] + msg.payload.data[1] * 256;
         break;

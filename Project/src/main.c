@@ -71,7 +71,7 @@ Connections:
 
 // Window Watchdog
 // Uncomment this line if in debug mode
-//#define DEBUG_NO_WWDG
+#define DEBUG_NO_WWDG
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
@@ -91,7 +91,7 @@ Connections:
 #define SEN_READ_PM25                   0xFFFF
 
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
-#define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
+#define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
 
 // Uncomment this line to enable CCT brightness quadratic function
 #define CCT_BR_QUADRATIC_FUNC
@@ -306,7 +306,11 @@ void UpdateNodeAddress(void) {
 #ifdef ENABLE_SDTM  
   tx_addr[0] = NODEID_MIN_REMOTE;
 #else
-  tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+  if( gConfig.enSDTM ) {
+    tx_addr[0] = NODEID_MIN_REMOTE;
+  } else {
+    tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+  }
 #endif  
   RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
@@ -512,7 +516,7 @@ int main( void ) {
    uint16_t pm25_tick = 0;
    uint8_t pm25_alivetick = 0;
 #endif   
-   
+      
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
@@ -531,6 +535,7 @@ int main( void ) {
   gConfig.swTimes++;
   if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
     gConfig.swTimes = 0;
+    gConfig.enSDTM = 0;
     gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
   }
@@ -561,6 +566,7 @@ int main( void ) {
   
   while(1) {
     // Go on only if NRF chip is presented
+    gConfig.present = 0;
     RF24L01_init();
     while(!NRF24L01_Check())feed_wwdg();
 
@@ -592,12 +598,21 @@ int main( void ) {
     Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
     SendMyMessage();
     mStatus = SYS_RUNNING;
-#else  
-    // Must establish connection firstly
-    SayHelloToDevice(TRUE);
-    gConfig.swTimes = 0;
-    gIsChanged = TRUE;
-    SaveConfig();
+#else
+    if( gConfig.enSDTM ) {
+      gConfig.nodeID = BASESERVICE_ADDRESS;
+      memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
+      UpdateNodeAddress();
+      Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
+      SendMyMessage();
+      mStatus = SYS_RUNNING;
+    } else {
+      // Must establish connection firstly
+      SayHelloToDevice(TRUE);
+      gConfig.swTimes = 0;
+      gIsChanged = TRUE;
+      SaveConfig();
+    }
 #endif
     
     uint8_t mIdle_tick = 0;
@@ -712,6 +727,7 @@ int main( void ) {
             } else if( --pm25_alivetick == 0 ) {
               // Reset PM2.5 moudle or restart the node
               mStatus = SYS_RESET;
+              pm25_init();
             }
           }
         } else if( pm25_tick > 0 ) {
