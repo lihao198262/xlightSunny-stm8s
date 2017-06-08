@@ -56,10 +56,10 @@ uint8_t ParseProtocol(){
     } else if( _type == I_REBOOT ) {
       if( _sensor == NODEID_GATEWAY ) {
         // Verify token
-        if(!gConfig.present || gConfig.token == msg.payload.uiValue) {
+        //if(!gConfig.present || gConfig.token == msg.payload.uiValue) {
           // Soft reset
           WWDG->CR = 0x80;
-        }
+        //}
         return 0;
       }
     } else if( _type == I_CONFIG ) {

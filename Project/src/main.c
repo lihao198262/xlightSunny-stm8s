@@ -476,14 +476,14 @@ bool SayHelloToDevice(bool infinate) {
       SaveConfig();
     }
     
+    // Feed the Watchdog
+    feed_wwdg();
+
     if( _doNow ) {
       // Send Message Immediately
       _count = 0;
       continue;
     }
-    
-    // Feed the Watchdog
-    feed_wwdg();
     
     // Failed or Timeout, then repeat init-step
     //delay_ms(400);
