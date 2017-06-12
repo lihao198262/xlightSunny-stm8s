@@ -66,8 +66,6 @@ Connections:
 
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		71
-#define ADDRESS_WIDTH                   5
-#define PLOAD_WIDTH                     32
 
 // Window Watchdog
 // Uncomment this line if in debug mode
@@ -117,8 +115,6 @@ uint8_t _uniqueID[UNIQUE_ID_LEN];
 uint8_t mStatus = SYS_INIT;
 bool mGotNodeID = FALSE;
 uint8_t mutex = 0;
-uint8_t rx_addr[ADDRESS_WIDTH];
-uint8_t tx_addr[ADDRESS_WIDTH];
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
 
@@ -258,6 +254,7 @@ void LoadConfig()
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
       gConfig.hasSiblingMCU = 0;
+      gConfig.rptTimes = 1;
       //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
@@ -288,6 +285,7 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
+    /*
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
 #endif
@@ -296,7 +294,8 @@ void LoadConfig()
 #endif    
 #ifdef EN_SENSOR_PM25
       gConfig.senMap |= sensorDUST;
-#endif    
+#endif
+  */    
 }
 
 void UpdateNodeAddress(void) {
@@ -312,7 +311,7 @@ void UpdateNodeAddress(void) {
     tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
   }
 #endif  
-  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
+  RF24L01_setup(RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
 bool WaitMutex(uint32_t _timeout) {
@@ -376,22 +375,25 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
 bool SendMyMessage() {
   if( bMsgReady ) {
     
-    // delay to avoid conflict
-    if( bDelaySend ) {
-      //delay_ms(gConfig.nodeID % 25 * 10);
-      WaitMutex(gConfig.nodeID * 100);
-      bDelaySend = FALSE;
-    }
+    uint8_t lv_tried = 0;
+    while (lv_tried++ <= gConfig.rptTimes ) {
+      // delay to avoid conflict
+      if( bDelaySend ) {
+        //delay_ms(gConfig.nodeID % 25 * 10);
+        WaitMutex(gConfig.nodeID * 100);
+        bDelaySend = FALSE;
+      }
 
-    mutex = 0;
-    RF24L01_set_mode_TX();
-    RF24L01_write_payload(pMsg, PLOAD_WIDTH);
+      mutex = 0;
+      RF24L01_set_mode_TX();
+      RF24L01_write_payload(pMsg, PLOAD_WIDTH);
 
-    WaitMutex(0x1FFFF);
-    if (mutex != 1) {
+      WaitMutex(0x1FFFF);
+      if (mutex == 1) break; // sent sccessfully
       //The transmission failed, Notes: mutex == 2 doesn't mean failed
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
+      // Repeat the message if necessary      
     }
     
     // Switch back to receive mode
@@ -1576,7 +1578,7 @@ uint8_t idleProcess() {
     }
   }
   
-  return mutex; 
+  return mutex;
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {

@@ -157,7 +157,7 @@ typedef struct
   UC rfPowerLevel             :2;           // RF Power Level 0..3
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
   UC swTimes                  :3;           // On/Off times
-  UC Reserved1                :2;           // Reserved bits
+  UC rptTimes                 :2;           // Sending message max repeat times [0..3]
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
