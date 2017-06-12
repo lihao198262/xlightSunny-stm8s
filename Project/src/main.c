@@ -381,7 +381,7 @@ bool SendMyMessage() {
       // delay to avoid conflict
       if( bDelaySend ) {
         //delay_ms(gConfig.nodeID % 25 * 10);
-        WaitMutex(gConfig.nodeID * 100);
+        WaitMutex((gConfig.nodeID - 1) * (uint32_t)512);
         bDelaySend = FALSE;
       }
 
