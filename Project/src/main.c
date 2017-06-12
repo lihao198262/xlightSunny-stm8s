@@ -285,6 +285,7 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
+    gConfig.rptTimes = 1;
     /*
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;

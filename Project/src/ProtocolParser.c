@@ -72,7 +72,11 @@ uint8_t ParseProtocol(){
         break;
 
       case NCF_DEV_EN_SDTM:
-        gConfig.enSDTM = msg.payload.data[0] + msg.payload.data[1] * 256;
+        gConfig.enSDTM = msg.payload.data[0];
+        break;
+        
+      case NCF_DEV_MAX_NMRT:
+        gConfig.rptTimes = msg.payload.data[0];
         break;
         
       case NCF_MAP_SENSOR:
@@ -295,7 +299,7 @@ void Msg_NodeConfigData(uint8_t _to) {
   msg.payload.data[payl_len++] = gConfig.alsLevel[1];
   msg.payload.data[payl_len++] = gConfig.pirLevel[0];
   msg.payload.data[payl_len++] = gConfig.pirLevel[1];
-  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = ((gConfig.filter << 4) | (gConfig.hasSiblingMCU << 3) | gConfig.rptTimes);
   msg.payload.data[payl_len++] = 0;     // Reservered
   
   miSetLength(payl_len);
