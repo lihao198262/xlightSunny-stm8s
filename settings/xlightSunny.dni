@@ -9,7 +9,7 @@ TriggerName=main
 LimitSize=0
 ByteLimit=50
 [DebugChecksum]
-Checksum=1228155663
+Checksum=-685965056
 [CallStack]
 ShowArgs=0
 [Disassembly]
@@ -53,8 +53,7 @@ Bp0=_ "STD_CODE" "{$PROJ_DIR$\ProtocolParser.c}.125.9" 0 0 0 0 "" 0 ""
 Bp1=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.540.5" 1 0 0 0 "" 0 ""
 Bp2=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.732.15" 1 0 0 0 "" 0 ""
 Bp3=_ "STD_CODE" "{$PROJ_DIR$\Project\src\ProtocolParser.c}.61.11" 1 0 0 0 "" 0 ""
-Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.396.7" 1 0 0 0 "" 0 ""
-Count=5
+Count=4
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""

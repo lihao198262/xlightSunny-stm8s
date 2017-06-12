@@ -394,7 +394,9 @@ bool SendMyMessage() {
       //The transmission failed, Notes: mutex == 2 doesn't mean failed
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
-      // Repeat the message if necessary      
+      // Repeat the message if necessary
+      uint16_t delay = 0xFF;
+      while(delay--);
     }
     
     // Switch back to receive mode
