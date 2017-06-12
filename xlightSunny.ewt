@@ -45,6 +45,9 @@
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim3.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim4.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_uart2.h</name>
       </file>
       <file>
@@ -76,6 +79,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim3.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim4.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_uart2.c</name>

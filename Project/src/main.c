@@ -285,7 +285,7 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
-    if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 1;
+    if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
     /*
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
@@ -377,11 +377,11 @@ bool SendMyMessage() {
   if( bMsgReady ) {
     
     uint8_t lv_tried = 0;
-    while (lv_tried++ <= gConfig.rptTimes ) {
+    while (lv_tried++ <= gConfig.rptTimes && gConfig.nodeID >= NODEID_MIN_DEVCIE) {
       // delay to avoid conflict
       if( bDelaySend ) {
         //delay_ms(gConfig.nodeID % 25 * 10);
-        WaitMutex((gConfig.nodeID - 1) * (uint32_t)512);
+        WaitMutex((gConfig.nodeID - NODEID_MIN_DEVCIE + 1) * (uint32_t)512);
         bDelaySend = FALSE;
       }
 
