@@ -285,7 +285,7 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
-    gConfig.rptTimes = 1;
+    if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 1;
     /*
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
@@ -395,8 +395,8 @@ bool SendMyMessage() {
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
       // Repeat the message if necessary
-      uint16_t delay = 0xFF;
-      while(delay--);
+      uint16_t delay = 0xFFF;
+      while(delay--)feed_wwdg();
     }
     
     // Switch back to receive mode
