@@ -4,8 +4,11 @@
 // Color arrays
 uint8_t cf_lstColor[CF_COLOR_COUNT][4] = { { 0, 255, 128, 0 }, // orange
                                            { 0, 255, 255, 0 }, // yellow
+                                           { 0, 205, 0, 205 }, // Magenta
                                            { 0, 0, 255, 0 },   // green
+                                           { 0, 0, 255, 255 }, // Cyan
                                            { 0, 0, 0, 255 },   // blue
+                                           { 0, 0, 191, 255 }, // DeepSkyBlue
                                            { 0, 227, 31, 51 }, // purple
                                            { 0, 255, 0, 0 } }; // red
 

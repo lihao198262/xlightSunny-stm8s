@@ -1,7 +1,7 @@
 #ifndef __COLOR_FACTORY_H
 #define __COLOR_FACTORY_H
 
-#define CF_COLOR_COUNT          6
+#define CF_COLOR_COUNT          9
 
 void cf_initStep();
 void cf_nextStep();

@@ -88,8 +88,9 @@ Connections:
 //#define DELAY_120_ms                    0x2FFF          // ticks, about 120ms
 //#define DELAY_800_ms                   0x1FFFF          // ticks, about 800ms
 #define DELAY_5_ms                      1           // tim4, 5ms intrupt
-#define DELAY_25_ms                     4          // tim4, 5ms intrupt
-#define DELAY_120_ms                    23         // tim4, 5ms intrupt
+#define DELAY_10_ms                     2           // tim4, 5ms intrupt
+#define DELAY_25_ms                     5          // tim4, 5ms intrupt
+#define DELAY_120_ms                    24         // tim4, 5ms intrupt
 #define DELAY_300_ms                    119        // tim4, 5ms intrupt
 #define DELAY_500_ms                    199        // tim4, 5ms intrupt
 #define DELAY_800_ms                    319        // tim4, 5ms intrupt
@@ -507,7 +508,7 @@ bool SayHelloToDevice(bool infinate) {
     // Failed or Timeout, then repeat init-step
     //delay_ms(400);
     mutex = 0;
-    WaitMutex(0x4FFF);
+    WaitMutex(0x1FFFF);
     _count %= 20;  // Every 10 seconds
   }
   
@@ -1439,7 +1440,7 @@ void StartDeviceColorFade(bool _init, bool _fast) {
   delay_step[DELAY_TIM_RGB] = RGB_STEP;
 
   // Smoothly change color - set timer
-  delay_timer[DELAY_TIM_RGB] = (_fast ? DELAY_5_ms : DELAY_25_ms);
+  delay_timer[DELAY_TIM_RGB] = (_fast ? DELAY_10_ms : DELAY_25_ms);
   delay_tick[DELAY_TIM_RGB] = (_fast ? DELAY_300_ms : DELAY_500_ms);
   delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
   delay_tag[DELAY_TIM_RGB] = RING_ID_ALL;
