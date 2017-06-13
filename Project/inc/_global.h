@@ -100,7 +100,7 @@
 //#define GRADUAL_RGB
 #define DEFAULT_BRIGHTNESS      65
 #define BRIGHTNESS_STEP         1
-#define MAX_STEP_TIMES          51
+#define MAX_STEP_TIMES          62
 #define MAX_FASTSTEP_TIMES      20
 #define CCT_STEP                50
 #define RGB_STEP                3

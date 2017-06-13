@@ -6,6 +6,7 @@
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
 #include "timer_4.h"
+#include "color_factory.h"
 #include "Uart2Dev.h"
 
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
@@ -85,10 +86,13 @@ Connections:
 //#define DELAY_5_ms                      0x1FF           // ticks, about 5ms
 //#define DELAY_25_ms                     0xAFF           // ticks, about 25ms
 //#define DELAY_120_ms                    0x2FFF          // ticks, about 120ms
-#define DELAY_5_ms                      5           // tim4, 1ms intrupt
-#define DELAY_25_ms                     25          // tim4, 1ms intrupt
-#define DELAY_120_ms                    120         // tim4, 1ms intrupt
-
+//#define DELAY_800_ms                   0x1FFFF          // ticks, about 800ms
+#define DELAY_5_ms                      1           // tim4, 5ms intrupt
+#define DELAY_25_ms                     4          // tim4, 5ms intrupt
+#define DELAY_120_ms                    23         // tim4, 5ms intrupt
+#define DELAY_300_ms                    119        // tim4, 5ms intrupt
+#define DELAY_500_ms                    199        // tim4, 5ms intrupt
+#define DELAY_800_ms                    319        // tim4, 5ms intrupt
 
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               0x02FF
@@ -578,7 +582,7 @@ int main( void ) {
 #endif  
   
   // Init timer
-  TIM4_1ms_handler = idleProcess;
+  TIM4_5ms_handler = idleProcess;
   Time4_Init();
   
   // Init serial ports
@@ -1176,26 +1180,18 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
 // Gradually change WRGB
 bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring) {
   
+  uint32_t newValue = cf_makeColorValue(_w, _r, _g, _b);
+  
 #ifdef RING_INDIVIDUAL_COLOR
   
   uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
   if( _w != RINGST_W(r_index) || _r != RINGST_R(r_index) || _g != RINGST_G(r_index) || _b != RINGST_B(r_index) ) {
 #ifdef GRADUAL_RGB    
     // Smoothly change RGBW - set parameters
-    delay_from[DELAY_TIM_RGB] = RINGST_W(r_index);
-    delay_from[DELAY_TIM_RGB] <<= 8;
-    delay_from[DELAY_TIM_RGB] += RINGST_R(r_index);
-    delay_from[DELAY_TIM_RGB] <<= 8;
-    delay_from[DELAY_TIM_RGB] += RINGST_G(r_index);
-    delay_from[DELAY_TIM_RGB] <<= 8;
-    delay_from[DELAY_TIM_RGB] += RINGST_B(r_index);
-    delay_to[DELAY_TIM_RGB] = _w;
-    delay_to[DELAY_TIM_RGB] <<= 8;
-    delay_to[DELAY_TIM_RGB] += _r;
-    delay_to[DELAY_TIM_RGB] <<= 8;
-    delay_to[DELAY_TIM_RGB] += _g;
-    delay_to[DELAY_TIM_RGB] <<= 8;
-    delay_to[DELAY_TIM_RGB] += _b;    
+    delay_from[DELAY_TIM_RGB] = cf_makeColorValue(RINGST_W(r_index), RINGST_R(r_index), RINGST_G(r_index), RINGST_B(r_index));
+    delay_to[DELAY_TIM_RGB] = newValue;
+    cf_updateInitialColor(delay_from[DELAY_TIM_RGB]);
+    cf_updateTargetColor(delay_to[DELAY_TIM_RGB]);
     delay_up[DELAY_TIM_RGB] = (delay_from[DELAY_TIM_RGB] < delay_to[DELAY_TIM_RGB]);
     delay_step[DELAY_TIM_RGB] = RGB_STEP;
     
@@ -1214,13 +1210,6 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     delay_tag[DELAY_TIM_RGB] = _ring;
     BF_SET(delay_func, 1, DELAY_TIM_RGB, 1); // Enable RGB Dimmer operation
 #else    
-    uint32_t newValue = _w;
-    newValue <<= 8;
-    newValue += _r;
-    newValue <<= 8;
-    newValue += _g;
-    newValue <<= 8;
-    newValue += _b;
     ChangeDeviceWRGB(newValue, _ring);
 #endif
     
@@ -1233,20 +1222,10 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
   if( _w != DEVST_W || _r != DEVST_R || _g != DEVST_G || _b != DEVST_B ) {
 #ifdef GRADUAL_RGB    
     // Smoothly change RGBW - set parameters
-    delay_from[DELAY_TIM_RGB] = DEVST_W;
-    delay_from[DELAY_TIM_RGB] <<= 8;
-    delay_from[DELAY_TIM_RGB] += DEVST_R;
-    delay_from[DELAY_TIM_RGB] <<= 8;
-    delay_from[DELAY_TIM_RGB] += DEVST_G;
-    delay_from[DELAY_TIM_RGB] <<= 8;
-    delay_from[DELAY_TIM_RGB] += DEVST_B;
-    delay_to[DELAY_TIM_RGB] = _w;
-    delay_to[DELAY_TIM_RGB] <<= 8;
-    delay_to[DELAY_TIM_RGB] += _r;
-    delay_to[DELAY_TIM_RGB] <<= 8;
-    delay_to[DELAY_TIM_RGB] += _g;
-    delay_to[DELAY_TIM_RGB] <<= 8;
-    delay_to[DELAY_TIM_RGB] += _b;
+    delay_from[DELAY_TIM_RGB] = cf_makeColorValue(DEVST_W, DEVST_R, DEVST_G, DEVST_B);
+    delay_to[DELAY_TIM_RGB] = newValue;
+    cf_updateInitialColor(delay_from[DELAY_TIM_RGB]);
+    cf_updateTargetColor(delay_to[DELAY_TIM_RGB]);
     delay_up[DELAY_TIM_RGB] = (delay_from[DELAY_TIM_RGB] < delay_to[DELAY_TIM_RGB]);
     delay_step[DELAY_TIM_RGB] = RGB_STEP;
 #endif
@@ -1264,13 +1243,6 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     delay_tag[DELAY_TIM_RGB] = _ring;
     BF_SET(delay_func, 1, DELAY_TIM_RGB, 1); // Enable RGB Dimmer operation
 #else
-    uint32_t newValue = _w;
-    newValue <<= 8;
-    newValue += _r;
-    newValue <<= 8;
-    newValue += _g;
-    newValue <<= 8;
-    newValue += _b;
     ChangeDeviceWRGB(newValue, _ring);
 #endif
     
@@ -1443,11 +1415,37 @@ void StartDeviceBreath(bool _init, bool _fast) {
     
   // Smoothly change brightness - set timer
   delay_timer[DELAY_TIM_BR] = (_fast ? DELAY_25_ms : DELAY_120_ms);
-  delay_tick[DELAY_TIM_BR] = 0x1FFFF;
+  delay_tick[DELAY_TIM_BR] = (_fast ? DELAY_500_ms : DELAY_800_ms);
   delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
   delay_tag[DELAY_TIM_BR] = RING_ID_ALL;
   BF_SET(delay_func, DEVST_OnOff, DELAY_TIM_BR, 1); // Enable BR Dimmer operation
 }
+
+#if defined(XRAINBOW) || defined(XMIRAGE)
+// Start color-fade effect
+void StartDeviceColorFade(bool _init, bool _fast) {
+  if( _init ) {
+    cf_initStep(); 
+    delay_from[DELAY_TIM_RGB] = cf_makeColorValue(DEVST_W, DEVST_R, DEVST_G, DEVST_B);
+    delay_to[DELAY_TIM_RGB] = cf_getTargetColorVal();
+  } else {
+    cf_nextStep();
+    delay_from[DELAY_TIM_RGB] = cf_getInitialColorVal();
+    delay_to[DELAY_TIM_RGB] = cf_getTargetColorVal();
+  }
+  
+  // Smoothly change color - set parameters
+  delay_up[DELAY_TIM_RGB] = (delay_from[DELAY_TIM_RGB] < delay_to[DELAY_TIM_RGB]);
+  delay_step[DELAY_TIM_RGB] = RGB_STEP;
+
+  // Smoothly change color - set timer
+  delay_timer[DELAY_TIM_RGB] = (_fast ? DELAY_5_ms : DELAY_25_ms);
+  delay_tick[DELAY_TIM_RGB] = (_fast ? DELAY_300_ms : DELAY_500_ms);
+  delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
+  delay_tag[DELAY_TIM_RGB] = RING_ID_ALL;
+  BF_SET(delay_func, DEVST_OnOff, DELAY_TIM_RGB, 1);
+}
+#endif
 
 bool SetDeviceFilter(uint8_t _filter) {
   // Start filter
@@ -1457,6 +1455,7 @@ bool SetDeviceFilter(uint8_t _filter) {
   }
 #if defined(XRAINBOW) || defined(XMIRAGE)    
   else if( _filter == FILTER_SP_EF_FLORID || _filter == FILTER_SP_EF_FAST_FLORID ) {
+    StartDeviceColorFade(TRUE, _filter == FILTER_SP_EF_FAST_FLORID);
   }
 #endif
   
@@ -1479,28 +1478,9 @@ bool isTimerCompleted(uint8_t _tmr) {
   bool bFinished;
   
   if( _tmr == DELAY_TIM_RGB ) {
-    uint32_t from_value, to_value, new_value;
-    uint8_t color1, color2;
-    from_value = delay_from[DELAY_TIM_RGB];
-    to_value = delay_to[DELAY_TIM_RGB];
-    new_value = 0;
-    for( uint8_t i = 0; i < 4; i++ ) {
-      color1 = (from_value & 0xFF);
-      color2 = (to_value & 0xFF);
-      if( color1 > color2 ) {
-        color1 -= delay_step[DELAY_TIM_RGB];
-        if( color1 < color2 ) color1 = color2;
-      } else if( color1 < color2 ) {
-        color1 += delay_step[DELAY_TIM_RGB];
-        if( color1 > color2 ) color1 = color2;
-      }
-      uint32_t temp = color1;
-      temp <<= (i * 8);
-      new_value += temp;
-      from_value >>= 8;
-      to_value >>= 8;
-    }
-    delay_from[DELAY_TIM_RGB] = new_value;
+    // Gradual color changing
+    uint32_t new_value = cf_fadeColor(delay_from[_tmr], delay_to[_tmr], delay_step[_tmr]);
+    delay_from[_tmr] = new_value;
     bFinished = ( delay_from[_tmr] == delay_to[_tmr] );
   } else {
     if( delay_up[_tmr] ) {
@@ -1548,14 +1528,15 @@ void idleProcess() {
           } else {
             BF_SET(delay_func, 0, _tmr, 1);
             
-            // Special effect
+            // Special effect - looper
             if( _tmr <= DELAY_TIM_RGB && gConfig.filter > 0 ) {
               if( gConfig.filter == FILTER_SP_EF_BREATH || gConfig.filter == FILTER_SP_EF_FAST_BREATH ) {
                 if( _tmr == DELAY_TIM_ONOFF ) delay_to[DELAY_TIM_BR] = DEVST_Bright;
                 StartDeviceBreath(FALSE, gConfig.filter == FILTER_SP_EF_FAST_BREATH);
               }
-#if defined(XRAINBOW) || defined(XMIRAGE)    
+#if defined(XRAINBOW) || defined(XMIRAGE)
               else if( gConfig.filter == FILTER_SP_EF_FLORID || gConfig.filter == FILTER_SP_EF_FAST_FLORID ) {
+                StartDeviceColorFade(FALSE, gConfig.filter == FILTER_SP_EF_FAST_FLORID);
               }
 #endif
             }

@@ -190,7 +190,7 @@
         <option>
           <name>CCDefines</name>
           <state>STM8S105</state>
-          <state>XSUNNY</state>
+          <state>XRAINBOW</state>
         </option>
         <option>
           <name>CCPreprocFile</name>
@@ -1677,6 +1677,9 @@
         <name>$PROJ_DIR$\Project\inc\ADC1Dev.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\color_factory.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\delay.h</name>
       </file>
       <file>
@@ -1717,6 +1720,9 @@
       <name>src</name>
       <file>
         <name>$PROJ_DIR$\Project\src\ADC1Dev.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\color_factory.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\delay.c</name>

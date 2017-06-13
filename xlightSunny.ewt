@@ -102,6 +102,9 @@
         <name>$PROJ_DIR$\Project\inc\ADC1Dev.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\color_factory.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\delay.h</name>
       </file>
       <file>
@@ -142,6 +145,9 @@
       <name>src</name>
       <file>
         <name>$PROJ_DIR$\Project\src\ADC1Dev.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\color_factory.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\delay.c</name>
