@@ -112,10 +112,10 @@ uint8_t ParseProtocol(){
         // Device/client got Response to Presentation message, ready to work
         gConfig.token = msg.payload.uiValue;
         gConfig.present = (gConfig.token >  0);
+        GotPresented();
         gIsChanged = TRUE;
         // Inform controller with latest status
         Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE, RING_ID_ALL);
-        GotPresented();
         return 1;
       }
     }

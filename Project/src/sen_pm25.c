@@ -6,8 +6,8 @@
 #define PM25_MESSAGE_TAIL       0xFF
 #define PM25_MESSAGE_LEN        6
 #define PM25_K_CONSTANT         800
-#define PM25_MA_NUM             150
-#define PM25_MAX_DEVIATION      25              // +-25%
+#define PM25_MA_NUM             120
+//#define PM25_MAX_DEVIATION      30              // +-30%
 
 u8 pm_data[7];   // 7 bytes for data store
 u8 data_ptr;
@@ -37,6 +37,7 @@ bool check_data() {
   return( pm_data[5] == check_sum );
 }
 
+#ifdef PM25_MAX_DEVIATION
 bool isAbnormalValue(u16 value) {
   u16 mvAve = mvSum / PM25_MA_NUM;
   u16 delta;
@@ -45,17 +46,20 @@ bool isAbnormalValue(u16 value) {
   float deviation = delta * 100.0 / mvAve;
   return( deviation > PM25_MAX_DEVIATION);
 }
+#endif
 
 // Moving average of latest num
 void calc_pm25() {
   u16 newData = pm_data[1] * 256 + pm_data[2];
   
   // Adandon abnormal value
+#ifdef PM25_MAX_DEVIATION
   if( pm25_ready ) {
     if( isAbnormalValue(newData) )
       return;
   }
-    
+#endif
+  
   pm25_alive = TRUE;
   if( newData != mvData[mv_ptr] ) {
     mvSum += newData;

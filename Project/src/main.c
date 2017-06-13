@@ -5,6 +5,7 @@
 #include "xliNodeConfig.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
+#include "timer_4.h"
 #include "Uart2Dev.h"
 
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
@@ -79,6 +80,15 @@ Connections:
 #define SYS_WAIT_NODEID                 2
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
+
+// Delay
+//#define DELAY_5_ms                      0x1FF           // ticks, about 5ms
+//#define DELAY_25_ms                     0xAFF           // ticks, about 25ms
+//#define DELAY_120_ms                    0x2FFF          // ticks, about 120ms
+#define DELAY_5_ms                      5           // tim4, 1ms intrupt
+#define DELAY_25_ms                     25          // tim4, 1ms intrupt
+#define DELAY_120_ms                    120         // tim4, 1ms intrupt
+
 
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               0x02FF
@@ -286,7 +296,6 @@ void LoadConfig()
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
     if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
-    /*
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
 #endif
@@ -296,7 +305,6 @@ void LoadConfig()
 #ifdef EN_SENSOR_PM25
       gConfig.senMap |= sensorDUST;
 #endif
-  */    
 }
 
 void UpdateNodeAddress(void) {
@@ -317,7 +325,7 @@ void UpdateNodeAddress(void) {
 
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
-    if( idleProcess() > 0 ) return TRUE;
+    if( mutex > 0 ) return TRUE;
     feed_wwdg();
   }
   return FALSE;
@@ -377,11 +385,13 @@ bool SendMyMessage() {
   if( bMsgReady ) {
     
     uint8_t lv_tried = 0;
-    while (lv_tried++ <= gConfig.rptTimes && gConfig.nodeID >= NODEID_MIN_DEVCIE) {
+    while (lv_tried++ <= gConfig.rptTimes ) {
+      
       // delay to avoid conflict
-      if( bDelaySend ) {
+      if( bDelaySend && gConfig.nodeID >= NODEID_MIN_DEVCIE ) {
         //delay_ms(gConfig.nodeID % 25 * 10);
-        WaitMutex((gConfig.nodeID - NODEID_MIN_DEVCIE + 1) * (uint32_t)512);
+        mutex = 0;
+        WaitMutex((gConfig.nodeID - NODEID_MIN_DEVCIE + 1) * (uint32_t)255);
         bDelaySend = FALSE;
       }
 
@@ -447,7 +457,7 @@ bool SayHelloToDevice(bool infinate) {
         if( !infinate ) return FALSE;
       } else {
         // Wait response
-        uint16_t tick = 0xAFFF;
+        uint16_t tick = 0xBFFF;
         while(tick-- && mStatus < SYS_RUNNING) {
           // Feed the Watchdog
           feed_wwdg();
@@ -492,6 +502,7 @@ bool SayHelloToDevice(bool infinate) {
     
     // Failed or Timeout, then repeat init-step
     //delay_ms(400);
+    mutex = 0;
     WaitMutex(0x4FFF);
     _count %= 20;  // Every 10 seconds
   }
@@ -566,6 +577,10 @@ int main( void ) {
   ADC1_Config();
 #endif  
   
+  // Init timer
+  TIM4_1ms_handler = idleProcess;
+  Time4_Init();
+  
   // Init serial ports
   //uart2_config(9600);
   
@@ -587,10 +602,8 @@ int main( void ) {
       SetDeviceFilter(gConfig.filter);
       SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
       //delay_ms(1500);   // about 1.5 sec
+      mutex = 0;
       WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
-
-      // Init Watchdog
-      //wwdg_init();
     }
   
     // IRQ
@@ -758,8 +771,8 @@ int main( void ) {
       // Save Config if Changed
       SaveConfig();
       
-      // Idle process
-      idleProcess();
+      // Idle process, do it in timer4
+      //idleProcess();
       
       // ToDo: Check heartbeats
       // mStatus = SYS_RESET, if timeout or received a value 3 times consecutively
@@ -948,7 +961,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_ONOFF] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_ONOFF] = _ring;
@@ -973,19 +986,6 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     DEVST_OnOff = _sw;
     if( _Brightness != DEVST_Bright ) {
       DEVST_Bright = _Brightness;
-
-      // Inform the controller in order to keep consistency
-      /*
-      delay_from[DELAY_TIM_MSG] = 2;    // Must be the MsgID
-      delay_to[DELAY_TIM_MSG] = 2;      // Must be the MsgID
-      delay_up[DELAY_TIM_MSG] = TRUE;
-      delay_step[DELAY_TIM_MSG] = 1;
-      delay_timer[DELAY_TIM_MSG] = 0xFF;
-      delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
-      delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
-      delay_tag[DELAY_TIM_MSG] = _ring;
-      BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
-      */
     }
     
 #ifdef GRADUAL_ONOFF
@@ -1002,7 +1002,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_ONOFF] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_ONOFF] = _ring;
@@ -1047,7 +1047,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     
 #ifdef GRADUAL_ONOFF
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_BR] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_BR] = _ring;
@@ -1075,23 +1075,11 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     DEVST_Bright = _br;
     if( DEVST_OnOff != newSW ) {
       DEVST_OnOff = newSW;
-      // Inform the controller in order to keep consistency
-      /*
-      delay_from[DELAY_TIM_MSG] = 1;    // Must be the MsgID
-      delay_to[DELAY_TIM_MSG] = 1;      // Must be the MsgID
-      delay_up[DELAY_TIM_MSG] = TRUE;
-      delay_step[DELAY_TIM_MSG] = 1;
-      delay_timer[DELAY_TIM_MSG] = 0xFF;
-      delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
-      delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
-      delay_tag[DELAY_TIM_MSG] = _ring;
-      BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
-      */
     }
     
 #ifdef GRADUAL_ONOFF
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_BR] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_BR] = _ring;
@@ -1134,7 +1122,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
     
 #ifdef GRADUAL_CCT
     // Smoothly change CCT - set timer
-    delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_CCT] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
     delay_tag[DELAY_TIM_CCT] = _ring;
@@ -1162,7 +1150,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
     
 #ifdef GRADUAL_CCT
     // Smoothly change CCT - set timer
-    delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_CCT] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
     delay_tag[DELAY_TIM_CCT] = _ring;
@@ -1220,7 +1208,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     
 #ifdef GRADUAL_RGB
     // Smoothly change RGBW - set timer
-    delay_timer[DELAY_TIM_RGB] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_RGB] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_RGB] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
     delay_tag[DELAY_TIM_RGB] = _ring;
@@ -1270,7 +1258,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     
 #ifdef GRADUAL_RGB
     // Smoothly change RGBW - set timer
-    delay_timer[DELAY_TIM_RGB] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_RGB] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_RGB] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
     delay_tag[DELAY_TIM_RGB] = _ring;
@@ -1454,7 +1442,7 @@ void StartDeviceBreath(bool _init, bool _fast) {
   delay_step[DELAY_TIM_BR] = GetSteps(BR_MIN_VALUE, DEVST_Bright, TRUE);
     
   // Smoothly change brightness - set timer
-  delay_timer[DELAY_TIM_BR] = (_fast ? 0xAFF : 0x2FFF);
+  delay_timer[DELAY_TIM_BR] = (_fast ? DELAY_25_ms : DELAY_120_ms);
   delay_tick[DELAY_TIM_BR] = 0x1FFFF;
   delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
   delay_tag[DELAY_TIM_BR] = RING_ID_ALL;
@@ -1545,7 +1533,7 @@ bool isTimerCompleted(uint8_t _tmr) {
 }
 
 // Execute delayed operations
-uint8_t idleProcess() {
+void idleProcess() {
   for( uint8_t _tmr = 0; _tmr < DELAY_TIMERS; _tmr++ ) {
     if( BF_GET(delay_func, _tmr, 1) ) {
       // Timer is enabled
@@ -1580,8 +1568,6 @@ uint8_t idleProcess() {
       break; // Only one time at a time
     }
   }
-  
-  return mutex;
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {

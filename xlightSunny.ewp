@@ -1704,6 +1704,9 @@
         <name>$PROJ_DIR$\Project\inc\stm8s_it.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\timer_4.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\Uart2Dev.h</name>
       </file>
       <file>
@@ -1735,6 +1738,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\sen_pm25.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\timer_4.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\Uart2Dev.c</name>
