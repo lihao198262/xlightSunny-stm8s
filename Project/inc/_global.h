@@ -15,8 +15,9 @@
 /// Comment off line to disable sensor
 //#define EN_SENSOR_ALS
 //#define EN_SENSOR_MIC
-#define EN_SENSOR_PIR
+//#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
+#define EN_SENSOR_PM25
 //#define EN_SENSOR_MQ135
 //#define EN_SENSOR_MQ2
 //#define EN_SENSOR_MQ7
@@ -145,17 +146,18 @@ typedef struct
   UC nodeID;                                // Node ID for this device
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
-  UC reserved                 :3;
+  UC enSDTM                   :1;           // Simple Direct Test Mode Flag
+  UC reserved                 :2;
   UC filter                   :4;
   UC type;                                  // Type of lamp
   US token;
   Hue_t ring[MAX_RING_NUM];
-  char Organization[24];                    // Organization name
-  char ProductName[24];                     // Product name
+  //char Organization[24];                    // Organization name
+  //char ProductName[24];                     // Product name
   UC rfPowerLevel             :2;           // RF Power Level 0..3
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
   UC swTimes                  :3;           // On/Off times
-  UC Reserved1                :2;           // Reserved bits
+  UC rptTimes                 :2;           // Sending message max repeat times [0..3]
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
@@ -166,6 +168,7 @@ extern Config_t gConfig;
 extern bool gIsChanged;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
 
+bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen);
 void GotNodeID();
 void GotPresented();
 void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold);
@@ -176,7 +179,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 bool SetDeviceFilter(uint8_t _filter);
-uint8_t idleProcess();
+void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 
 // All rings or the first ring

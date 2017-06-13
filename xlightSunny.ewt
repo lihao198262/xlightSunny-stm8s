@@ -45,6 +45,9 @@
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim3.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_tim4.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\inc\stm8s_uart2.h</name>
       </file>
       <file>
@@ -76,6 +79,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim3.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_tim4.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\STM8S_StdPeriph_Driver\src\stm8s_uart2.c</name>
@@ -114,10 +120,16 @@
         <name>$PROJ_DIR$\Project\inc\sen_pir.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\sen_pm25.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\stm8s_conf.h</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\inc\stm8s_it.h</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\inc\timer_4.h</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\inc\Uart2Dev.h</name>
@@ -148,6 +160,12 @@
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\sen_pir.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\sen_pm25.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\timer_4.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\Uart2Dev.c</name>

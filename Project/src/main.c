@@ -5,6 +5,7 @@
 #include "xliNodeConfig.h"
 #include "ProtocolParser.h"
 #include "LightPwmDrv.h"
+#include "timer_4.h"
 #include "Uart2Dev.h"
 
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
@@ -13,6 +14,10 @@
 
 #ifdef EN_SENSOR_PIR
 #include "sen_pir.h"
+#endif
+
+#ifdef EN_SENSOR_PM25
+#include "sen_pm25.h"
 #endif
 
 /*
@@ -40,7 +45,7 @@ Connections:
 */
 
 // Xlight Application Identification
-#define XLA_VERSION               0x03
+#define XLA_VERSION               0x05
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
 
 // Choose Product Name & Type
@@ -62,8 +67,6 @@ Connections:
 
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		71
-#define ADDRESS_WIDTH                   5
-#define PLOAD_WIDTH                     32
 
 // Window Watchdog
 // Uncomment this line if in debug mode
@@ -78,15 +81,25 @@ Connections:
 #define SYS_WAIT_PRESENTED              3
 #define SYS_RUNNING                     5
 
+// Delay
+//#define DELAY_5_ms                      0x1FF           // ticks, about 5ms
+//#define DELAY_25_ms                     0xAFF           // ticks, about 25ms
+//#define DELAY_120_ms                    0x2FFF          // ticks, about 120ms
+#define DELAY_5_ms                      5           // tim4, 1ms intrupt
+#define DELAY_25_ms                     25          // tim4, 1ms intrupt
+#define DELAY_120_ms                    120         // tim4, 1ms intrupt
+
+
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               0x02FF
 
 // Sensor reading duration
 #define SEN_READ_ALS                    0xFFFF
 #define SEN_READ_PIR                    0x1FFF
+#define SEN_READ_PM25                   0xFFFF
 
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
-#define REGISTER_RESET_TIMES            250     // default 5, super large value for show only to avoid ID mess
+#define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
 
 // Uncomment this line to enable CCT brightness quadratic function
 #define CCT_BR_QUADRATIC_FUNC
@@ -112,16 +125,8 @@ uint8_t _uniqueID[UNIQUE_ID_LEN];
 uint8_t mStatus = SYS_INIT;
 bool mGotNodeID = FALSE;
 uint8_t mutex = 0;
-uint8_t rx_addr[ADDRESS_WIDTH];
-uint8_t tx_addr[ADDRESS_WIDTH];
 uint16_t pwm_Warm = 0;
 uint16_t pwm_Cold = 0;
-
-// USART
-uint8_t USART_ReceiveDataBuf[32];
-uint8_t Buff_Cnt;
-uint8_t USART_FLAG;
-uint8_t RX_TX_BUFF = 0;
 
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
@@ -238,8 +243,8 @@ void LoadConfig()
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.type != XLA_PRODUCT_Type || isNodeIdRequired()
-       || strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
+       || gConfig.type != XLA_PRODUCT_Type || isNodeIdRequired() ) {
+       //|| strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       gConfig.nodeID = BASESERVICE_ADDRESS;
@@ -259,8 +264,9 @@ void LoadConfig()
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfPowerLevel = RF24_PA_MAX;
       gConfig.hasSiblingMCU = 0;
-      sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
-      sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
+      gConfig.rptTimes = 1;
+      //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
+      //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
       gConfig.senMap = 0;
 #ifdef EN_SENSOR_ALS
@@ -271,7 +277,11 @@ void LoadConfig()
 #endif
 #ifdef EN_SENSOR_DHT
       gConfig.senMap |= sensorDHT;
-#endif      
+#endif
+#ifdef EN_SENSOR_PM25
+      gConfig.senMap |= sensorDUST;
+#endif
+      
       gConfig.funcMap = 0;
       gConfig.alsLevel[0] = 70;
       gConfig.alsLevel[1] = 80;
@@ -285,6 +295,16 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
+    if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
+#ifdef EN_SENSOR_ALS
+      gConfig.senMap |= sensorALS;
+#endif
+#ifdef EN_SENSOR_PIR
+      gConfig.senMap |= sensorPIR;
+#endif    
+#ifdef EN_SENSOR_PM25
+      gConfig.senMap |= sensorDUST;
+#endif
 }
 
 void UpdateNodeAddress(void) {
@@ -294,14 +314,19 @@ void UpdateNodeAddress(void) {
 #ifdef ENABLE_SDTM  
   tx_addr[0] = NODEID_MIN_REMOTE;
 #else
-  tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+  if( gConfig.enSDTM ) {
+    tx_addr[0] = NODEID_MIN_REMOTE;
+  } else {
+    tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+  }
 #endif  
-  RF24L01_setup(tx_addr, rx_addr, RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
+  RF24L01_setup(RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
-    if( idleProcess() > 0 ) return TRUE;
+    if( mutex > 0 ) return TRUE;
+    feed_wwdg();
   }
   return FALSE;
 }
@@ -359,21 +384,29 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
 bool SendMyMessage() {
   if( bMsgReady ) {
     
-    // delay to avoid conflict
-    if( bDelaySend ) {
-      delay_ms(gConfig.nodeID % 25 * 10);
-      bDelaySend = FALSE;
-    }
+    uint8_t lv_tried = 0;
+    while (lv_tried++ <= gConfig.rptTimes ) {
+      
+      // delay to avoid conflict
+      if( bDelaySend && gConfig.nodeID >= NODEID_MIN_DEVCIE ) {
+        //delay_ms(gConfig.nodeID % 25 * 10);
+        mutex = 0;
+        WaitMutex((gConfig.nodeID - NODEID_MIN_DEVCIE + 1) * (uint32_t)255);
+        bDelaySend = FALSE;
+      }
 
-    mutex = 0;
-    RF24L01_set_mode_TX();
-    RF24L01_write_payload(pMsg, PLOAD_WIDTH);
+      mutex = 0;
+      RF24L01_set_mode_TX();
+      RF24L01_write_payload(pMsg, PLOAD_WIDTH);
 
-    WaitMutex(0x1FFFF);
-    if (mutex != 1) {
+      WaitMutex(0x1FFFF);
+      if (mutex == 1) break; // sent sccessfully
       //The transmission failed, Notes: mutex == 2 doesn't mean failed
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
+      // Repeat the message if necessary
+      uint16_t delay = 0xFFF;
+      while(delay--)feed_wwdg();
     }
     
     // Switch back to receive mode
@@ -424,7 +457,7 @@ bool SayHelloToDevice(bool infinate) {
         if( !infinate ) return FALSE;
       } else {
         // Wait response
-        uint16_t tick = 0xAFFF;
+        uint16_t tick = 0xBFFF;
         while(tick-- && mStatus < SYS_RUNNING) {
           // Feed the Watchdog
           feed_wwdg();
@@ -458,17 +491,19 @@ bool SayHelloToDevice(bool infinate) {
       SaveConfig();
     }
     
+    // Feed the Watchdog
+    feed_wwdg();
+
     if( _doNow ) {
       // Send Message Immediately
       _count = 0;
       continue;
     }
     
-    // Feed the Watchdog
-    feed_wwdg();
-    
     // Failed or Timeout, then repeat init-step
-    delay_ms(400);
+    //delay_ms(400);
+    mutex = 0;
+    WaitMutex(0x4FFF);
     _count %= 20;  // Every 10 seconds
   }
   
@@ -492,6 +527,12 @@ int main( void ) {
    uint16_t pir_tick = 0;
 #endif
    
+#ifdef EN_SENSOR_PM25       
+   uint16_t lv_pm2_5 = 0;
+   uint16_t pm25_tick = 0;
+   uint8_t pm25_alivetick = 0;
+#endif   
+      
   //After reset, the device restarts by default with the HSI clock divided by 8.
   //CLK_DeInit();
   /* High speed internal clock prescaler: 1 */
@@ -501,14 +542,6 @@ int main( void ) {
   // Init PWM Timers
   initTim2PWMFunction();
 
-  // Init sensors
-#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
-  ADC1_PinInit();
-#endif
-#ifdef EN_SENSOR_PIR
-  pir_init();
-#endif
-  
   // Load config from Flash
   FLASH_DeInit();
   Read_UniqueID(_uniqueID, UNIQUE_ID_LEN);
@@ -518,24 +551,44 @@ int main( void ) {
   gConfig.swTimes++;
   if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
     gConfig.swTimes = 0;
+    gConfig.enSDTM = 0;
     gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
   }
   gIsChanged = TRUE;
   SaveConfig();
   
+  // Init Watchdog
+  wwdg_init();
+  
+  // Init sensors
+#ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
+  ADC1_PinInit();
+#endif
+#ifdef EN_SENSOR_PIR
+  pir_init();
+#endif
+#ifdef EN_SENSOR_PM25
+  pm25_init();
+#endif
+  
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC  
   // Init ADC
   ADC1_Config();
 #endif  
   
+  // Init timer
+  TIM4_1ms_handler = idleProcess;
+  Time4_Init();
+  
   // Init serial ports
-  //uart2_config();
+  //uart2_config(9600);
   
   while(1) {
     // Go on only if NRF chip is presented
+    gConfig.present = 0;
     RF24L01_init();
-    while(!NRF24L01_Check());
+    while(!NRF24L01_Check())feed_wwdg();
 
     // Try to communicate with sibling MCUs (STM8S003F), 
     /// if got response, which means the device supports indiviual ring control.
@@ -549,10 +602,8 @@ int main( void ) {
       SetDeviceFilter(gConfig.filter);
       SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
       //delay_ms(1500);   // about 1.5 sec
+      mutex = 0;
       WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
-
-      // Init Watchdog
-      wwdg_init();
     }
   
     // IRQ
@@ -565,12 +616,21 @@ int main( void ) {
     Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
     SendMyMessage();
     mStatus = SYS_RUNNING;
-#else  
-    // Must establish connection firstly
-    SayHelloToDevice(TRUE);
-    gConfig.swTimes = 0;
-    gIsChanged = TRUE;
-    SaveConfig();
+#else
+    if( gConfig.enSDTM ) {
+      gConfig.nodeID = BASESERVICE_ADDRESS;
+      memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
+      UpdateNodeAddress();
+      Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
+      SendMyMessage();
+      mStatus = SYS_RUNNING;
+    } else {
+      // Must establish connection firstly
+      SayHelloToDevice(TRUE);
+      gConfig.swTimes = 0;
+      gIsChanged = TRUE;
+      SaveConfig();
+    }
 #endif
     
     uint8_t mIdle_tick = 0;
@@ -616,6 +676,7 @@ int main( void ) {
                 gIsChanged = TRUE;
               }
               Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+              feed_wwdg();
             }
           }
         } else if( pir_tick > 0 ) {
@@ -657,11 +718,38 @@ int main( void ) {
                 gIsChanged = TRUE;
                 SendMyMessage();
                 Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+                feed_wwdg();
               }
             }
           }
         } else if( als_tick > 0 ) {
           als_tick--;
+        }
+      }
+#endif
+      
+#ifdef EN_SENSOR_PM25
+      if( gConfig.senMap & sensorDUST ) {
+        if( !bMsgReady && !pm25_tick ) {
+          pm25_tick = SEN_READ_PM25;
+          // Reset read timer
+          if( pm25_ready ) {
+            if( lv_pm2_5 != pm25_value ) {
+              lv_pm2_5 = pm25_value;
+              if( lv_pm2_5 < 5 ) lv_pm2_5 = 8;
+              // Send PM2.5 to Controller
+              Msg_SenPM25(lv_pm2_5);
+            } else if( pm25_alive ) {
+              pm25_alive = FALSE;
+              pm25_alivetick = 20;
+            } else if( --pm25_alivetick == 0 ) {
+              // Reset PM2.5 moudle or restart the node
+              mStatus = SYS_RESET;
+              pm25_init();
+            }
+          }
+        } else if( pm25_tick > 0 ) {
+          pm25_tick--;
         }
       }
 #endif
@@ -683,11 +771,11 @@ int main( void ) {
       // Save Config if Changed
       SaveConfig();
       
-      // Idle process
-      idleProcess();
+      // Idle process, do it in timer4
+      //idleProcess();
       
       // ToDo: Check heartbeats
-      // mStatus = SYS_REST, if timeout or received a value 3 times consecutively
+      // mStatus = SYS_RESET, if timeout or received a value 3 times consecutively
     }
   }
 }
@@ -811,6 +899,7 @@ void ChangeDeviceCCT(uint32_t _cct, uint8_t _ring) {
 
 // Immediately change wrgb
 void ChangeDeviceWRGB(uint32_t _wrgb, uint8_t _ring) {
+#if defined(XRAINBOW) || defined(XMIRAGE)
   uint8_t _w, _r, _g, _b;
   _b = (_wrgb & 0xff);
   _wrgb >>= 8;
@@ -822,14 +911,11 @@ void ChangeDeviceWRGB(uint32_t _wrgb, uint8_t _ring) {
   
 #ifdef RING_INDIVIDUAL_COLOR
   uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
-#if defined(XRAINBOW) || defined(XMIRAGE)
   ChangeDeviceStatus(TRUE, RINGST_Bright(r_index), _w, _r, _g, _b, _ring);
-#endif
 #else
-#if defined(XRAINBOW) || defined(XMIRAGE)
   ChangeDeviceStatus(TRUE, DEVST_Bright, _w, _r, _g, _b, _ring);
 #endif
-#endif
+#endif  
 }
 
 void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
@@ -875,7 +961,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_ONOFF] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_ONOFF] = _ring;
@@ -900,19 +986,6 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     DEVST_OnOff = _sw;
     if( _Brightness != DEVST_Bright ) {
       DEVST_Bright = _Brightness;
-
-      // Inform the controller in order to keep consistency
-      /*
-      delay_from[DELAY_TIM_MSG] = 2;    // Must be the MsgID
-      delay_to[DELAY_TIM_MSG] = 2;      // Must be the MsgID
-      delay_up[DELAY_TIM_MSG] = TRUE;
-      delay_step[DELAY_TIM_MSG] = 1;
-      delay_timer[DELAY_TIM_MSG] = 0xFF;
-      delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
-      delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
-      delay_tag[DELAY_TIM_MSG] = _ring;
-      BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
-      */
     }
     
 #ifdef GRADUAL_ONOFF
@@ -929,7 +1002,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
     delay_step[DELAY_TIM_ONOFF] = GetSteps(delay_from[DELAY_TIM_ONOFF], delay_to[DELAY_TIM_ONOFF], FALSE);
 
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_ONOFF] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_ONOFF] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_ONOFF] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_ONOFF] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_ONOFF] = _ring;
@@ -974,7 +1047,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     
 #ifdef GRADUAL_ONOFF
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_BR] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_BR] = _ring;
@@ -1002,23 +1075,11 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     DEVST_Bright = _br;
     if( DEVST_OnOff != newSW ) {
       DEVST_OnOff = newSW;
-      // Inform the controller in order to keep consistency
-      /*
-      delay_from[DELAY_TIM_MSG] = 1;    // Must be the MsgID
-      delay_to[DELAY_TIM_MSG] = 1;      // Must be the MsgID
-      delay_up[DELAY_TIM_MSG] = TRUE;
-      delay_step[DELAY_TIM_MSG] = 1;
-      delay_timer[DELAY_TIM_MSG] = 0xFF;
-      delay_tick[DELAY_TIM_MSG] = 0;      // execute next step right away
-      delay_handler[DELAY_TIM_MSG] = DelaySendMsg;
-      delay_tag[DELAY_TIM_MSG] = _ring;
-      BF_SET(delay_func, 1, DELAY_TIM_MSG, 1);
-      */
     }
     
 #ifdef GRADUAL_ONOFF
     // Smoothly change brightness - set timer
-    delay_timer[DELAY_TIM_BR] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_BR] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_BR] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
     delay_tag[DELAY_TIM_BR] = _ring;
@@ -1061,7 +1122,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
     
 #ifdef GRADUAL_CCT
     // Smoothly change CCT - set timer
-    delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_CCT] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
     delay_tag[DELAY_TIM_CCT] = _ring;
@@ -1089,7 +1150,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
     
 #ifdef GRADUAL_CCT
     // Smoothly change CCT - set timer
-    delay_timer[DELAY_TIM_CCT] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_CCT] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_CCT] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_CCT] = ChangeDeviceCCT;
     delay_tag[DELAY_TIM_CCT] = _ring;
@@ -1147,7 +1208,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     
 #ifdef GRADUAL_RGB
     // Smoothly change RGBW - set timer
-    delay_timer[DELAY_TIM_RGB] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_RGB] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_RGB] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
     delay_tag[DELAY_TIM_RGB] = _ring;
@@ -1197,7 +1258,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     
 #ifdef GRADUAL_RGB
     // Smoothly change RGBW - set timer
-    delay_timer[DELAY_TIM_RGB] = 0x1FF;  // about 5ms
+    delay_timer[DELAY_TIM_RGB] = DELAY_5_ms;  // about 5ms
     delay_tick[DELAY_TIM_RGB] = 0;      // execute next step right away
     delay_handler[DELAY_TIM_RGB] = ChangeDeviceWRGB;
     delay_tag[DELAY_TIM_RGB] = _ring;
@@ -1381,7 +1442,7 @@ void StartDeviceBreath(bool _init, bool _fast) {
   delay_step[DELAY_TIM_BR] = GetSteps(BR_MIN_VALUE, DEVST_Bright, TRUE);
     
   // Smoothly change brightness - set timer
-  delay_timer[DELAY_TIM_BR] = (_fast ? 0xAFF : 0x2FFF);
+  delay_timer[DELAY_TIM_BR] = (_fast ? DELAY_25_ms : DELAY_120_ms);
   delay_tick[DELAY_TIM_BR] = 0x1FFFF;
   delay_handler[DELAY_TIM_BR] = ChangeDeviceBR;
   delay_tag[DELAY_TIM_BR] = RING_ID_ALL;
@@ -1472,7 +1533,7 @@ bool isTimerCompleted(uint8_t _tmr) {
 }
 
 // Execute delayed operations
-uint8_t idleProcess() {
+void idleProcess() {
   for( uint8_t _tmr = 0; _tmr < DELAY_TIMERS; _tmr++ ) {
     if( BF_GET(delay_func, _tmr, 1) ) {
       // Timer is enabled
@@ -1507,8 +1568,6 @@ uint8_t idleProcess() {
       break; // Only one time at a time
     }
   }
-  
-  return mutex; 
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
@@ -1529,21 +1588,4 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
   }
 
    RF24L01_clear_interrupts();
-}
-
-INTERRUPT_HANDLER(UART2_RX_IRQHandler, 18)
-{
-  /* In order to detect unexpected events during development,
-  it is recommended to set a breakpoint on the following instruction.
-  */
-  if(UART2_GetITStatus(UART2_IT_RXNE) == SET) {
-    RX_TX_BUFF = UART2_ReceiveData8();
-    
-    USART_ReceiveDataBuf[Buff_Cnt++] = RX_TX_BUFF ;
-    if(RX_TX_BUFF == '\n') {
-      USART_FLAG = 1;
-      UART2_ClearITPendingBit(UART2_IT_RXNE);
-    }
-  }
-  //Buff_Cnt++;
 }

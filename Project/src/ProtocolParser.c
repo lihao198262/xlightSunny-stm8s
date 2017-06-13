@@ -38,6 +38,12 @@ uint8_t ParseProtocol(){
       uint8_t lv_nodeID = _sensor;
       if( lv_nodeID == NODEID_GATEWAY || lv_nodeID == NODEID_DUMMY ) {
       } else {
+        if( miGetLength() > 8 ) {
+          // Verify _uniqueID        
+          if(!isIdentityEqual(_uniqueID, msg.payload.data+8, UNIQUE_ID_LEN)) {
+            return 0;
+          }
+        }
         gConfig.nodeID = lv_nodeID;
         memcpy(gConfig.NetworkID, msg.payload.data, sizeof(gConfig.NetworkID));
         gIsChanged = TRUE;
@@ -46,6 +52,15 @@ uint8_t ParseProtocol(){
         SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
         Msg_DevBrightness(_sender, _sensor);
         return 1;
+      }
+    } else if( _type == I_REBOOT ) {
+      if( _sensor == NODEID_GATEWAY ) {
+        // Verify token
+        //if(!gConfig.present || gConfig.token == msg.payload.uiValue) {
+          // Soft reset
+          WWDG->CR = 0x80;
+        //}
+        return 0;
       }
     } else if( _type == I_CONFIG ) {
       // Node Config
@@ -56,6 +71,14 @@ uint8_t ParseProtocol(){
         return 1;
         break;
 
+      case NCF_DEV_EN_SDTM:
+        gConfig.enSDTM = msg.payload.data[0];
+        break;
+        
+      case NCF_DEV_MAX_NMRT:
+        gConfig.rptTimes = msg.payload.data[0];
+        break;
+        
       case NCF_MAP_SENSOR:
         gConfig.senMap = msg.payload.data[0] + msg.payload.data[1] * 256;
         break;
@@ -89,10 +112,10 @@ uint8_t ParseProtocol(){
         // Device/client got Response to Presentation message, ready to work
         gConfig.token = msg.payload.uiValue;
         gConfig.present = (gConfig.token >  0);
+        GotPresented();
         gIsChanged = TRUE;
         // Inform controller with latest status
         Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE, RING_ID_ALL);
-        GotPresented();
         return 1;
       }
     }
@@ -276,7 +299,7 @@ void Msg_NodeConfigData(uint8_t _to) {
   msg.payload.data[payl_len++] = gConfig.alsLevel[1];
   msg.payload.data[payl_len++] = gConfig.pirLevel[0];
   msg.payload.data[payl_len++] = gConfig.pirLevel[1];
-  msg.payload.data[payl_len++] = 0;     // Reservered
+  msg.payload.data[payl_len++] = ((gConfig.filter << 4) | (gConfig.hasSiblingMCU << 3) | gConfig.rptTimes);
   msg.payload.data[payl_len++] = 0;     // Reservered
   
   miSetLength(payl_len);
@@ -462,5 +485,17 @@ void Msg_SenPIR(bool _sw) {
   miSetLength(1);
   msg.payload.data[0] = _sw;
   bMsgReady = 1;
+}
+#endif
+  
+#ifdef EN_SENSOR_PM25
+// Prepare PM2.5 message
+void Msg_SenPM25(uint16_t _value) {
+  build(NODEID_GATEWAY, S_DUST, C_PRESENTATION, V_LEVEL, 0, 0);
+  miSetPayloadType(P_UINT16);
+  miSetLength(2);
+  msg.payload.data[0] = _value % 256;
+  msg.payload.data[1] = _value / 256;
+  bMsgReady = 1;  
 }
 #endif

@@ -1,6 +1,10 @@
 #include "rf24l01.h"
+//#include "stdio.h"
 #include <stm8s_spi.h>
 #include <stm8s_gpio.h>
+
+uint8_t rx_addr[ADDRESS_WIDTH];
+uint8_t tx_addr[ADDRESS_WIDTH];
 
 void RF24L01_init(void) {
   //Chip Select
@@ -143,7 +147,7 @@ void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t lengt
   CSN_HIGH;
 }
 
-void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t boardcast) {
+void RF24L01_setup(uint8_t channel, uint8_t boardcast) {
   CE_LOW; //CE -> Low
 
   RF24L01_reg_SETUP_AW_content SETUP_AW;
@@ -151,8 +155,8 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
   SETUP_AW.AW = 0x03;
   RF24L01_write_register(RF24L01_reg_SETUP_AW, ((uint8_t *)&SETUP_AW), 1);
   
-  RF24L01_write_register(RF24L01_reg_RX_ADDR_P0, rx_addr, 5);
-  RF24L01_write_register(RF24L01_reg_TX_ADDR, tx_addr, 5);
+  RF24L01_write_register(RF24L01_reg_RX_ADDR_P0, rx_addr, ADDRESS_WIDTH);
+  RF24L01_write_register(RF24L01_reg_TX_ADDR, tx_addr, ADDRESS_WIDTH);
   
   // Set boardcast address
   if( boardcast > 0 ) {
@@ -181,13 +185,13 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
 
   RF24L01_reg_RX_PW_P0_content RX_PW_P0;
   *((uint8_t *)&RX_PW_P0) = 0;
-  RX_PW_P0.RX_PW_P0 = 0x20;
+  RX_PW_P0.RX_PW_P0 = PLOAD_WIDTH;
   RF24L01_write_register(RF24L01_reg_RX_PW_P0, ((uint8_t *)&RX_PW_P0), 1);  
 
   if( boardcast > 0 ) {
     RF24L01_reg_RX_PW_P1_content RX_PW_P1;
     *((uint8_t *)&RX_PW_P1) = 0;
-    RX_PW_P1.RX_PW_P1 = 0x20;
+    RX_PW_P1.RX_PW_P1 = PLOAD_WIDTH;
     RF24L01_write_register(RF24L01_reg_RX_PW_P1, ((uint8_t *)&RX_PW_P1), 1);
   }
 
@@ -214,6 +218,7 @@ void RF24L01_setup(uint8_t *tx_addr, uint8_t *rx_addr, uint8_t channel, uint8_t 
   RF24L01_reg_SETUP_RETR_content SETUP_RETR;
   *((uint8_t *)&SETUP_RETR) = 0;
   // 250um * (ARD + 1), [250um(0x00), 4000um(0x0f)]
+  //SETUP_RETR.ARD = 0x05;        // Mark0
   SETUP_RETR.ARD = rx_addr[0] % 14 + 2;    // [2..15]
   SETUP_RETR.ARC = 0x0f;
   RF24L01_write_register(RF24L01_reg_SETUP_RETR, ((uint8_t *)&SETUP_RETR), 1);  
@@ -244,7 +249,11 @@ void RF24L01_set_mode_TX(void) {
   config.MASK_MAX_RT = 0;
   config.MASK_TX_DS = 0;
   config.MASK_RX_DR = 0;
-  RF24L01_write_register(RF24L01_reg_CONFIG, ((uint8_t *)&config), 1);  
+  RF24L01_write_register(RF24L01_reg_CONFIG, ((uint8_t *)&config), 1);
+  
+  // Restore the pipe0 adddress
+  RF24L01_write_register(RF24L01_reg_RX_ADDR_P0, tx_addr, ADDRESS_WIDTH);
+  RF24L01_write_register(RF24L01_reg_TX_ADDR, tx_addr, ADDRESS_WIDTH);  
 }
 
 void RF24L01_set_mode_RX(void) {
@@ -259,7 +268,10 @@ void RF24L01_set_mode_RX(void) {
   config.MASK_RX_DR = 0;
   RF24L01_write_register(RF24L01_reg_CONFIG, ((uint8_t *)&config), 1);
 
-  //Clear the status register to discard any data in the buffers
+  // Restore the pipe0 adddress
+  RF24L01_write_register(RF24L01_reg_RX_ADDR_P0, rx_addr, ADDRESS_WIDTH);
+  
+  // Clear the status register to discard any data in the buffers
   RF24L01_clear_interrupts();
   RF24L01_send_command(RF24L01_command_FLUSH_RX);
   RF24L01_send_command(RF24L01_command_FLUSH_TX);
@@ -437,5 +449,62 @@ void RF24L01_show_registers(void) {
   n1D = RF24L01_read_register(RF24L01_reg_DYNPD);
   n1C = RF24L01_read_register(RF24L01_reg_FEATURE);
   print_address_register("TX_ADDR", RF24L01_reg_TX_ADDR);
+}
+*/
+
+/*
+char strOutput[100];
+void print_byte_register(const char* name, uint8_t reg)
+{
+  uint8_t value;
+
+  value = RF24L01_read_register(reg);
+  memset(strOutput, 0x00, sizeof(strOutput));
+  sprintf(strOutput, "%s=0x%x\n\r", name, value);
+  Uart2SendString(strOutput);
+}
+
+void print_address_register(const char* name, uint8_t reg, uint8_t qty)
+{
+  uint8_t buffer[5];
+  RF24L01_read_buf(reg, buffer, qty);
+
+  memset(strOutput, 0x00, sizeof(strOutput));
+  sprintf(strOutput, "%s=0x%x%x%x%x%x\n\r", name, buffer[4], buffer[3], buffer[2], buffer[1], buffer[0]);
+  Uart2SendString(strOutput);
+}
+
+uint8_t nState, nAA, nConfig, nRFCH, nSetup, n1D, n1C, nRXADDR;
+
+*/
+
+/*
+void RF24L01_show_registers(void) {*/
+  /*
+  print_byte_register("RX_ADDR_P0",RF24L01_reg_RX_ADDR_P0);
+  print_byte_register("RX_ADDR_P1",RF24L01_reg_RX_ADDR_P1);
+  print_byte_register("TX_ADDR", RF24L01_reg_TX_ADDR);
+
+  print_byte_register("RX_PW_P0-6", RF24L01_reg_RX_PW_P0);
+  print_byte_register("EN_AA\t", RF24L01_reg_EN_AA);
+  print_byte_register("EN_RXADDR", RF24L01_reg_EN_RXADDR);
+  print_byte_register("RF_CH\t", RF24L01_reg_RF_CH);
+  print_byte_register("RF_SETUP", RF24L01_reg_RF_SETUP);
+  print_byte_register("CONFIG\t", RF24L01_reg_CONFIG);
+  print_byte_register("DYNPD", RF24L01_reg_DYNPD);
+  print_byte_register("FEATURE", RF24L01_reg_FEATURE);
+  */
+  /*
+  nState = RF24L01_read_register(RF24L01_reg_STATUS);
+  nAA = RF24L01_read_register(RF24L01_reg_EN_AA);
+  nRXADDR = RF24L01_read_register(RF24L01_reg_EN_RXADDR);
+  nConfig = RF24L01_read_register(RF24L01_reg_CONFIG);
+  nRFCH = RF24L01_read_register(RF24L01_reg_RF_CH);
+  nSetup = RF24L01_read_register(RF24L01_reg_RF_SETUP);
+  n1D = RF24L01_read_register(RF24L01_reg_DYNPD);
+  n1C = RF24L01_read_register(RF24L01_reg_FEATURE);
+  memset(strOutput, 0x00, sizeof(strOutput));
+  sprintf(strOutput, "State=%02x, AA=%02x, RXADDR=%02x, Config=%02x, CH=%02x, Setup=%02x, Fea=%02x, Dyn=%02x\n\r", nState, nAA, nRXADDR, nConfig, nRFCH, nSetup, n1C, n1D);
+  Uart2SendString(strOutput);
 }
 */
