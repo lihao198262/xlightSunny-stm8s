@@ -18,6 +18,7 @@
 #define NCF_DATA_PM25_RANGE             53      // PM2.5 threshholds, payload length = 2
 #define NCF_DATA_PIR_RANGE              54      // PIR control brightness (off br, on br), payload length = 2
 #define NCF_DATA_FN_SCENARIO            60      // Scenario ID for Remote Fn keys (b1=fn_id, b2=scenario_id), payload length = 2
+#define NCF_DATA_FN_HUE                 61      // Hue for Remote Fn keys (b1_7-4=bmDevice, b1_3-0=fn_id, b2-10=Hue), payload length = 10
 
 typedef enum
 {

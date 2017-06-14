@@ -46,7 +46,7 @@ Connections:
 */
 
 // Xlight Application Identification
-#define XLA_VERSION               0x05
+#define XLA_VERSION               0x06
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
 
 // Choose Product Name & Type
@@ -618,7 +618,7 @@ int main( void ) {
     gConfig.nodeID = BASESERVICE_ADDRESS;
     memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
     UpdateNodeAddress();
-    Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
+    Msg_DevStatus(NODEID_MIN_REMOTE, RING_ID_ALL);
     SendMyMessage();
     mStatus = SYS_RUNNING;
 #else
@@ -626,7 +626,7 @@ int main( void ) {
       gConfig.nodeID = BASESERVICE_ADDRESS;
       memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
       UpdateNodeAddress();
-      Msg_DevStatus(NODEID_MIN_REMOTE, NODEID_MIN_REMOTE, RING_ID_ALL);
+      Msg_DevStatus(NODEID_MIN_REMOTE, RING_ID_ALL);
       SendMyMessage();
       mStatus = SYS_RUNNING;
     } else {
@@ -680,7 +680,7 @@ int main( void ) {
                 ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
                 gIsChanged = TRUE;
               }
-              Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+              Msg_DevBrightness(NODEID_GATEWAY);
               feed_wwdg();
             }
           }
@@ -722,7 +722,7 @@ int main( void ) {
                 lv_preBRChanged = FALSE;
                 gIsChanged = TRUE;
                 SendMyMessage();
-                Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+                Msg_DevBrightness(NODEID_GATEWAY);
                 feed_wwdg();
               }
             }
@@ -765,7 +765,7 @@ int main( void ) {
         // Check Keep Alive Timer
         if( mIdle_tick == 0 ) {
           if( ++mTimerKeepAlive > RTE_TM_KEEP_ALIVE ) {
-            Msg_DevBrightness(NODEID_GATEWAY, NODEID_GATEWAY);
+            Msg_DevBrightness(NODEID_GATEWAY);
           }
         }
       }
@@ -927,12 +927,12 @@ void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
   switch( _msg ) {
   case 1:
     // send current on/off status
-    Msg_DevOnOff(NODEID_GATEWAY, NODEID_MIN_REMOTE);
+    Msg_DevOnOff(NODEID_GATEWAY);
     break;
     
   case 2:
     // send current brigntness status
-    Msg_DevBrightness(NODEID_GATEWAY, NODEID_MIN_REMOTE);
+    Msg_DevBrightness(NODEID_GATEWAY);
     break;
   }
   

@@ -150,6 +150,7 @@ typedef struct
   UC reserved                 :2;
   UC filter                   :4;
   UC type;                                  // Type of lamp
+  UC subID;                                 // SubID
   US token;
   Hue_t ring[MAX_RING_NUM];
   //char Organization[24];                    // Organization name
@@ -216,5 +217,6 @@ void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 #define IS_GROUP_NODEID(nID)       (nID >= NODEID_MIN_GROUP && nID <= NODEID_MAX_GROUP)
 #define IS_NOT_DEVICE_NODEID(nID)  ((nID < NODEID_MIN_DEVCIE || nID > NODEID_MAX_DEVCIE) && nID != NODEID_MAINDEVICE)
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
+#define IS_MINE_SUBID(nSID)        ((nSID) == 0 || ((nSID) & gConfig.subID))
 
 #endif /* __GLOBAL_H */

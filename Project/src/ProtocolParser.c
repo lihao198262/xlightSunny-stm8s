@@ -29,6 +29,7 @@ uint8_t ParseProtocol(){
   uint8_t _sensor = msg.header.sensor;
   bool _needAck = (bool)miGetRequestAck();
   bool _isAck = (bool)miGetAck();
+  bool _specificNode = ((msg.header.destination == gConfig.nodeID ) && !IS_NOT_DEVICE_NODEID(gConfig.nodeID));
   
   bDelaySend = FALSE;
   switch( _cmd ) {
@@ -50,11 +51,11 @@ uint8_t ParseProtocol(){
         GotNodeID();
         // Increase brightness to indicate ID required
         SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
-        Msg_DevBrightness(_sender, _sensor);
+        Msg_DevBrightness(_sender);
         return 1;
       }
     } else if( _type == I_REBOOT ) {
-      if( _sensor == NODEID_GATEWAY ) {
+      if( IS_MINE_SUBID(_sensor) || _specificNode ) {
         // Verify token
         //if(!gConfig.present || gConfig.token == msg.payload.uiValue) {
           // Soft reset
@@ -115,7 +116,7 @@ uint8_t ParseProtocol(){
         GotPresented();
         gIsChanged = TRUE;
         // Inform controller with latest status
-        Msg_DevStatus(NODEID_GATEWAY, NODEID_MIN_REMOTE, RING_ID_ALL);
+        Msg_DevStatus(NODEID_GATEWAY, RING_ID_ALL);
         return 1;
       }
     }
@@ -123,38 +124,38 @@ uint8_t ParseProtocol(){
     
   case C_REQ:
     if( _needAck ) {
-      if( _type == V_STATUS || _type == V_PERCENTAGE ) {
-        Msg_DevBrightness(_sender, _sensor);
-        return 1;
-      } else if( _type == V_LEVEL ) { // CCT
-        Msg_DevBrightness(_sender, _sensor);
-        return 1;
-      } else if( _type == V_RGBW ) { // Hue
-        uint8_t _RingID = msg.payload.data[0];
-        Msg_DevStatus(_sender, _sensor, _RingID);
-        return 1;
-      } else if( _type == V_DISTANCE ) { // Topology
-        uint8_t _RingID = msg.payload.data[0];
-        Msg_DevTopology(_sender, _sensor, _RingID);
-        return 1;
+      if( IS_MINE_SUBID(_sensor) || _specificNode ) {
+        if( _type == V_STATUS || _type == V_PERCENTAGE ) {
+          Msg_DevBrightness(_sender);
+          return 1;
+        } else if( _type == V_LEVEL ) { // CCT
+          Msg_DevBrightness(_sender);
+          return 1;
+        } else if( _type == V_RGBW ) { // Hue
+          uint8_t _RingID = msg.payload.data[0];
+          Msg_DevStatus(_sender, _RingID);
+          return 1;
+        } else if( _type == V_DISTANCE ) { // Topology
+          uint8_t _RingID = msg.payload.data[0];
+          Msg_DevTopology(_sender, _RingID);
+          return 1;
+        }
       }
     }    
     break;
     
   case C_SET:
-    if( _type == V_STATUS ) {
-      if( !_isAck ) {
+    if( (IS_MINE_SUBID(_sensor) || _specificNode) && !_isAck ) {
+      if( _type == V_STATUS ) {
         // set main lamp(ID:1) power(V_STATUS:2) on/off
         bool _OnOff = (msg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : msg.payload.bValue == DEVICE_SW_ON);
         SetDeviceOnOff(_OnOff, RING_ID_ALL);
         if( _needAck ) {
           bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevBrightness(_sender, _sensor);
+          Msg_DevBrightness(_sender);
           return 1;
         }
-      }
-    } else if( _type == V_PERCENTAGE ) {
-      if( !_isAck ) {
+      } else if( _type == V_PERCENTAGE ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness;
         gConfig.filter = 0;
@@ -180,12 +181,10 @@ uint8_t ParseProtocol(){
         SetDeviceBrightness(_Brightness, RING_ID_ALL);
         if( _needAck ) {
           bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevBrightness(_sender, _sensor);
+          Msg_DevBrightness(_sender);
           return 1;
         }
-      }
-    } else if( _type == V_LEVEL ) { // CCT
-      if( !_isAck ) {
+      } else if( _type == V_LEVEL ) { // CCT
         // Get main lamp(ID:1) CCT V_LEVEL
         uint16_t _CCTValue;
         gConfig.filter = 0;
@@ -212,12 +211,10 @@ uint8_t ParseProtocol(){
         SetDeviceCCT(_CCTValue, RING_ID_ALL);
         if( _needAck ) {
           bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevCCT(_sender, _sensor);
+          Msg_DevCCT(_sender);
           return 1;
         }
-      }
-    } else if( _type == V_RGBW ) { // RGBW
-      if( !_isAck ) {
+      } else if( _type == V_RGBW ) { // RGBW
         // Get main lamp(ID:1) RGBW
         gConfig.filter = 0;
         uint8_t _RingID = msg.payload.data[0];
@@ -236,18 +233,16 @@ uint8_t ParseProtocol(){
           // Set RGBW
           if( _OnOff != RINGST_OnOff(r_index) || _Brightness != RINGST_Bright(r_index) || msg.payload.data[3] != RINGST_W(r_index) 
              || msg.payload.data[4] != RINGST_R(r_index) || msg.payload.data[5] != RINGST_G(r_index) || msg.payload.data[6] != RINGST_B(r_index) ) {
-            SetDeviceHue(_OnOff, _Brightness, msg.payload.data[3], msg.payload.data[4], msg.payload.data[5], msg.payload.data[6], _RingID);
-            gIsChanged = TRUE;
-          }
+               SetDeviceHue(_OnOff, _Brightness, msg.payload.data[3], msg.payload.data[4], msg.payload.data[5], msg.payload.data[6], _RingID);
+               gIsChanged = TRUE;
+             }
         }
         if( _needAck ) {
           bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevStatus(_sender, _sensor, _RingID);
+          Msg_DevStatus(_sender, _RingID);
           return 1;
-        }          
-      }
-    } else if( _type == V_DISTANCE ) { // Topology
-      if( !_isAck ) {
+        }
+      } else if( _type == V_DISTANCE ) { // Topology
         // Get main lamp(ID:1) Length of threads
         uint8_t _RingID = msg.payload.data[0];
         if( IS_MIRAGE(gConfig.type) ) {
@@ -255,16 +250,14 @@ uint8_t ParseProtocol(){
         }
         if( _needAck ) {
           bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevTopology(_sender, _sensor, _RingID);
+          Msg_DevTopology(_sender, _RingID);
           return 1;
         }          
-      }
-    } else if( _type == V_VAR1 ) { // Special effect
-      if( !_isAck ) {
+      } else if( _type == V_VAR1 ) { // Special effect
         SetDeviceFilter(msg.payload.bValue);
         if( _needAck ) {
           bDelaySend = (msg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevFilter(_sender, _sensor);
+          Msg_DevFilter(_sender);
           return 1;
         }
       }
@@ -326,8 +319,8 @@ void Msg_Presentation() {
 }
 
 // Prepare device On/Off status message
-void Msg_DevOnOff(uint8_t _to, uint8_t _dest) {
-  build(_to, _dest, C_REQ, V_STATUS, 0, 1);
+void Msg_DevOnOff(uint8_t _to) {
+  build(_to, gConfig.subID, C_REQ, V_STATUS, 0, 1);
   miSetLength(1);
   miSetPayloadType(P_BYTE);
   msg.payload.bValue = DEVST_OnOff;
@@ -335,8 +328,8 @@ void Msg_DevOnOff(uint8_t _to, uint8_t _dest) {
 }
 
 // Prepare device brightness message
-void Msg_DevBrightness(uint8_t _to, uint8_t _dest) {
-  build(_to, _dest, C_REQ, V_PERCENTAGE, 0, 1);
+void Msg_DevBrightness(uint8_t _to) {
+  build(_to, gConfig.subID, C_REQ, V_PERCENTAGE, 0, 1);
   miSetLength(2);
   miSetPayloadType(P_BYTE);
   msg.payload.data[0] = DEVST_OnOff;
@@ -345,8 +338,8 @@ void Msg_DevBrightness(uint8_t _to, uint8_t _dest) {
 }
 
 // Prepare device CCT message
-void Msg_DevCCT(uint8_t _to, uint8_t _dest) {
-  build(_to, _dest, C_REQ, V_LEVEL, 0, 1);
+void Msg_DevCCT(uint8_t _to) {
+  build(_to, gConfig.subID, C_REQ, V_LEVEL, 0, 1);
   miSetLength(2);
   miSetPayloadType(P_UINT16);
   msg.payload.data[0] = DEVST_WarmCold % 256;
@@ -355,12 +348,12 @@ void Msg_DevCCT(uint8_t _to, uint8_t _dest) {
 }
 
 // Prepare device status message
-void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
+void Msg_DevStatus(uint8_t _to, uint8_t _ring) {
   uint8_t payl_len, r_index;
   
   if( _ring > MAX_RING_NUM ) _ring = RING_ID_ALL;
   
-  build(_to, _dest, C_REQ, V_RGBW, 0, 1);
+  build(_to, gConfig.subID, C_REQ, V_RGBW, 0, 1);
   msg.payload.data[0] = 1;		// Success
   msg.payload.data[1] = gConfig.type;
   msg.payload.data[2] = gConfig.present;
@@ -412,12 +405,12 @@ void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring) {
 }
 
 // Prepare topology message
-void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
+void Msg_DevTopology(uint8_t _to, uint8_t _ring) {
   uint8_t payl_len, r_index;
   
   if( _ring > MAX_RING_NUM ) _ring = RING_ID_ALL;
   
-  build(_to, _dest, C_REQ, V_DISTANCE, 0, 1);
+  build(_to, gConfig.subID, C_REQ, V_DISTANCE, 0, 1);
 
   msg.payload.data[0] = IS_MIRAGE(gConfig.type);        // Success
   msg.payload.data[1] = gConfig.type;
@@ -458,8 +451,8 @@ void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring) {
 }
 
 // Prepare device filter message
-void Msg_DevFilter(uint8_t _to, uint8_t _dest) {
-  build(_to, _dest, C_REQ, V_VAR1, 0, 1);
+void Msg_DevFilter(uint8_t _to) {
+  build(_to, gConfig.subID, C_REQ, V_VAR1, 0, 1);
   miSetLength(1);
   miSetPayloadType(P_BYTE);
   msg.payload.data[0] = gConfig.filter;
