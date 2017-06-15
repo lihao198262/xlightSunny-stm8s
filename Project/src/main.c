@@ -105,6 +105,7 @@ Connections:
 
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
+#define MAX_RF_FAILED_TIME              10      // Reset RF module when reach max failed times of sending
 
 // Uncomment this line to enable CCT brightness quadratic function
 #define CCT_BR_QUADRATIC_FUNC
@@ -135,6 +136,7 @@ uint16_t pwm_Cold = 0;
 
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
+uint8_t m_cntRFSendFailed = 0;
 
 // Delayed operation in function idleProcess()
 typedef void (*OnTick_t)(uint32_t, uint8_t);  // Operation callback function typedef
@@ -390,6 +392,7 @@ bool SendMyMessage() {
   if( bMsgReady ) {
     
     uint8_t lv_tried = 0;
+    uint16_t delay;
     while (lv_tried++ <= gConfig.rptTimes ) {
       
       // delay to avoid conflict
@@ -405,12 +408,27 @@ bool SendMyMessage() {
       RF24L01_write_payload(pMsg, PLOAD_WIDTH);
 
       WaitMutex(0x1FFFF);
-      if (mutex == 1) break; // sent sccessfully
+      if (mutex == 1) {
+        m_cntRFSendFailed = 0;
+        break; // sent sccessfully
+      } else if( m_cntRFSendFailed++ > MAX_RF_FAILED_TIME ) {
+        // Reset RF module
+        m_cntRFSendFailed = 0;
+        // RF24 Chip in low power
+        RF24L01_DeInit();
+        delay = 0x1FFF;
+        while(delay--)feed_wwdg();
+        RF24L01_init();
+        NRF2401_EnableIRQ();
+        UpdateNodeAddress();
+        continue;
+      }
+      
       //The transmission failed, Notes: mutex == 2 doesn't mean failed
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
       // Repeat the message if necessary
-      uint16_t delay = 0xFFF;
+      delay = 0xFFF;
       while(delay--)feed_wwdg();
     }
     

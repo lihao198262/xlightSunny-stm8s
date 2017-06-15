@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-#define ENABLE_SDTM
+//#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor
@@ -17,7 +17,7 @@
 //#define EN_SENSOR_MIC
 //#define EN_SENSOR_PIR
 //#define EN_SENSOR_DHT
-#define EN_SENSOR_PM25
+//#define EN_SENSOR_PM25
 //#define EN_SENSOR_MQ135
 //#define EN_SENSOR_MQ2
 //#define EN_SENSOR_MQ7

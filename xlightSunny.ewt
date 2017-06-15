@@ -165,6 +165,9 @@
         <name>$PROJ_DIR$\Project\src\rf24l01.c</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\src\sen_als.c</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\src\sen_pir.c</name>
       </file>
       <file>

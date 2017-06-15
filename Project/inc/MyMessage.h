@@ -95,6 +95,8 @@ typedef enum {
 	S_SOUND, // Sound sensor, V_TRIPPED, V_ARMED, V_LEVEL (sound level in dB)
 	S_VIBRATION, // Vibration sensor, V_TRIPPED, V_ARMED, V_LEVEL (vibration in Hz)
 	S_MOISTURE, // Moisture sensor, V_TRIPPED, V_ARMED, V_LEVEL (water content or moisture in percentage?)
+        S_ZENSENSOR = 65, // Xlight Super Sensor
+        S_ZENREMOTE = 66, // Xlight Super Remote
 } mysensor_sensor;
 
 // Type of sensor data (for set/req/ack messages)
