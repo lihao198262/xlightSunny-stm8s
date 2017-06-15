@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-//#define ENABLE_SDTM
+#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor

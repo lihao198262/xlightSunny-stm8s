@@ -72,6 +72,10 @@ uint8_t ParseProtocol(){
         return 1;
         break;
 
+      case NCF_DEV_SET_SUBID:
+        gConfig.subID = msg.payload.data[0];
+        break;
+
       case NCF_DEV_EN_SDTM:
         gConfig.enSDTM = msg.payload.data[0];
         break;
