@@ -13,6 +13,10 @@
 #include "ADC1Dev.h"
 #endif
 
+#ifdef EN_SENSOR_ALS
+#include "sen_als.h"
+#endif
+
 #ifdef EN_SENSOR_PIR
 #include "sen_pir.h"
 #endif
@@ -538,7 +542,6 @@ int main( void ) {
 
 #ifdef EN_SENSOR_ALS
    uint8_t pre_als_value = 0;
-   uint8_t als_value;
    uint16_t als_tick = 0;
    uint8_t lv_steps;
    bool lv_preBRChanged;
@@ -714,34 +717,35 @@ int main( void ) {
         if( !bMsgReady && !als_tick ) {
           // Reset read timer
           als_tick = SEN_READ_ALS;
-          als_value = als_read();
-          if( pre_als_value != als_value ) {
-            // Send brightness message
-            pre_als_value = als_value;
-            Msg_SenALS(pre_als_value);
-          }
+          if( als_checkData() ) {
+            if( pre_als_value != als_value ) {
+              // Send brightness message
+              pre_als_value = als_value;
+              Msg_SenALS(pre_als_value);
+            }
           
-          // Action
-          if( gConfig.funcMap & controlALS ) {
-            if( DEVST_OnOff ) {
-              lv_Brightness = 0;
-              if( als_value < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
-                lv_steps = GetSteps(als_value, gConfig.alsLevel[0], TRUE);
-                lv_Brightness = DEVST_Bright + lv_steps;
-              } else if( als_value > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
-                lv_steps = GetSteps(als_value, gConfig.alsLevel[1], TRUE);
-                lv_Brightness = (DEVST_Bright > lv_steps ? DEVST_Bright - lv_steps : 0);
-              }
-              if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
-                DEVST_Bright = lv_Brightness;
-                ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
-                lv_preBRChanged = TRUE;
-              } else if( lv_preBRChanged ) {
-                lv_preBRChanged = FALSE;
-                gIsChanged = TRUE;
-                SendMyMessage();
-                Msg_DevBrightness(NODEID_GATEWAY);
-                feed_wwdg();
+            // Action
+            if( gConfig.funcMap & controlALS ) {
+              if( DEVST_OnOff ) {
+                lv_Brightness = 0;
+                if( als_value < gConfig.alsLevel[0] && gConfig.alsLevel[0] > 0 ) {
+                  lv_steps = GetSteps(als_value, gConfig.alsLevel[0], TRUE);
+                  lv_Brightness = DEVST_Bright + lv_steps;
+                } else if( als_value > gConfig.alsLevel[1] && gConfig.alsLevel[1] > gConfig.alsLevel[0] ) {
+                  lv_steps = GetSteps(als_value, gConfig.alsLevel[1], TRUE);
+                  lv_Brightness = (DEVST_Bright > lv_steps ? DEVST_Bright - lv_steps : 0);
+                }
+                if( lv_Brightness > 0 && lv_Brightness <= 100 ) {
+                  DEVST_Bright = lv_Brightness;
+                  ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
+                  lv_preBRChanged = TRUE;
+                } else if( lv_preBRChanged ) {
+                  lv_preBRChanged = FALSE;
+                  gIsChanged = TRUE;
+                  SendMyMessage();
+                  Msg_DevBrightness(NODEID_GATEWAY);
+                  feed_wwdg();
+                }
               }
             }
           }
