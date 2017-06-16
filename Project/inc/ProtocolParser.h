@@ -12,12 +12,12 @@ void Msg_NodeConfigAck(uint8_t _to, uint8_t _ncf);
 void Msg_NodeConfigData(uint8_t _to);
 void Msg_RequestNodeID();
 void Msg_Presentation();
-void Msg_DevOnOff(uint8_t _to, uint8_t _dest);
-void Msg_DevBrightness(uint8_t _to, uint8_t _dest);
-void Msg_DevFilter(uint8_t _to, uint8_t _dest);
-void Msg_DevCCT(uint8_t _to, uint8_t _dest);
-void Msg_DevStatus(uint8_t _to, uint8_t _dest, uint8_t _ring);
-void Msg_DevTopology(uint8_t _to, uint8_t _dest, uint8_t _ring);
+void Msg_DevOnOff(uint8_t _to);
+void Msg_DevBrightness(uint8_t _to);
+void Msg_DevFilter(uint8_t _to);
+void Msg_DevCCT(uint8_t _to);
+void Msg_DevStatus(uint8_t _to, uint8_t _ring);
+void Msg_DevTopology(uint8_t _to, uint8_t _ring);
 
 #ifdef EN_SENSOR_ALS
 void Msg_SenALS(uint8_t _value);

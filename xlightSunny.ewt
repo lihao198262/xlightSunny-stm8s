@@ -102,6 +102,9 @@
         <name>$PROJ_DIR$\Project\inc\ADC1Dev.h</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\inc\color_factory.h</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\inc\delay.h</name>
       </file>
       <file>
@@ -144,6 +147,9 @@
         <name>$PROJ_DIR$\Project\src\ADC1Dev.c</name>
       </file>
       <file>
+        <name>$PROJ_DIR$\Project\src\color_factory.c</name>
+      </file>
+      <file>
         <name>$PROJ_DIR$\Project\src\delay.c</name>
       </file>
       <file>
@@ -157,6 +163,9 @@
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\rf24l01.c</name>
+      </file>
+      <file>
+        <name>$PROJ_DIR$\Project\src\sen_als.c</name>
       </file>
       <file>
         <name>$PROJ_DIR$\Project\src\sen_pir.c</name>
