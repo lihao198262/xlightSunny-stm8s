@@ -155,6 +155,9 @@ typedef enum {
 	V_HVAC_SETPOINT_COOL, // S_HVAC. HVAC cool setpoint (Integer between 0-100)
 	V_HVAC_SETPOINT_HEAT, // S_HEATER, S_HVAC. HVAC/Heater setpoint (Integer between 0-100)
 	V_HVAC_FLOW_MODE, // S_HVAC. Flow mode for HVAC ("Auto", "ContinuousOn", "PeriodicOn")
+        
+        V_RELAY_ON = 65,        // Xlight relay on
+        V_RELAY_OFF,            // Xlight relay off
 
 } mysensor_data;
 
@@ -219,26 +222,47 @@ typedef enum {
 
 
 // internal access for special fields
-#define miSetCommand(_command) BF_SET(msg.header.command_ack_payload, _command, 0, 3)
-#define miGetCommand() BF_GET(msg.header.command_ack_payload, 0, 3)
+#define miSetCommand(_command) BF_SET(rcvMsg.header.command_ack_payload, _command, 0, 3)
+#define miGetCommand() BF_GET(rcvMsg.header.command_ack_payload, 0, 3)
 
-#define miSetLength(_length) BF_SET(msg.header.version_length, _length, 3, 5)
-#define miGetLength() BF_GET(msg.header.version_length, 3, 5)
+#define miSetLength(_length) BF_SET(rcvMsg.header.version_length, _length, 3, 5)
+#define miGetLength() BF_GET(rcvMsg.header.version_length, 3, 5)
 
-#define miSetRequestAck(_rack) BF_SET(msg.header.command_ack_payload, _rack, 3, 1)
-#define miGetRequestAck() BF_GET(msg.header.command_ack_payload, 3, 1)
+#define miSetRequestAck(_rack) BF_SET(rcvMsg.header.command_ack_payload, _rack, 3, 1)
+#define miGetRequestAck() BF_GET(rcvMsg.header.command_ack_payload, 3, 1)
 
-#define miSetAck(_ack) BF_SET(msg.header.command_ack_payload, _ack, 4, 1)
-#define miGetAck() BF_GET(msg.header.command_ack_payload, 4, 1)
+#define miSetAck(_ack) BF_SET(rcvMsg.header.command_ack_payload, _ack, 4, 1)
+#define miGetAck() BF_GET(rcvMsg.header.command_ack_payload, 4, 1)
 
-#define miSetPayloadType(_pt) BF_SET(msg.header.command_ack_payload, _pt, 5, 3)
-#define miGetPayloadType() BF_GET(msg.header.command_ack_payload, 5, 3)
+#define miSetPayloadType(_pt) BF_SET(rcvMsg.header.command_ack_payload, _pt, 5, 3)
+#define miGetPayloadType() BF_GET(rcvMsg.header.command_ack_payload, 5, 3)
 
-#define miSetVersion(_version) BF_SET(msg.header.version_length, _version, 0, 2)
-#define miGetVersion() BF_GET(msg.header.version_length, 0, 2)
+#define miSetVersion(_version) BF_SET(rcvMsg.header.version_length, _version, 0, 2)
+#define miGetVersion() BF_GET(rcvMsg.header.version_length, 0, 2)
 
-#define miSetSigned(_signed) BF_SET(msg.header.version_length, _signed, 2, 1)
-#define miGetSigned() BF_GET(msg.header.version_length, 2, 1)
+#define miSetSigned(_signed) BF_SET(rcvMsg.header.version_length, _signed, 2, 1)
+#define miGetSigned() BF_GET(rcvMsg.header.version_length, 2, 1)
+
+#define moSetCommand(_command) BF_SET(sndMsg.header.command_ack_payload, _command, 0, 3)
+#define moGetCommand() BF_GET(sndMsg.header.command_ack_payload, 0, 3)
+
+#define moSetLength(_length) BF_SET(sndMsg.header.version_length, _length, 3, 5)
+#define moGetLength() BF_GET(sndMsg.header.version_length, 3, 5)
+
+#define moSetRequestAck(_rack) BF_SET(sndMsg.header.command_ack_payload, _rack, 3, 1)
+#define moGetRequestAck() BF_GET(sndMsg.header.command_ack_payload, 3, 1)
+
+#define moSetAck(_ack) BF_SET(sndMsg.header.command_ack_payload, _ack, 4, 1)
+#define moGetAck() BF_GET(sndMsg.header.command_ack_payload, 4, 1)
+
+#define moSetPayloadType(_pt) BF_SET(sndMsg.header.command_ack_payload, _pt, 5, 3)
+#define moGetPayloadType() BF_GET(sndMsg.header.command_ack_payload, 5, 3)
+
+#define moSetVersion(_version) BF_SET(sndMsg.header.version_length, _version, 0, 2)
+#define moGetVersion() BF_GET(sndMsg.header.version_length, 0, 2)
+
+#define moSetSigned(_signed) BF_SET(sndMsg.header.version_length, _signed, 2, 1)
+#define moGetSigned() BF_GET(sndMsg.header.version_length, 2, 1)
 
 typedef struct
 {
@@ -284,7 +308,8 @@ typedef struct
 	MyMsgPayload_t payload;
 } MyMessage_t;
 
-extern MyMessage_t msg;
-extern uint8_t *pMsg;
+extern MyMessage_t sndMsg, rcvMsg;
+extern uint8_t *psndMsg;
+extern uint8_t *prcvMsg;
 
 #endif

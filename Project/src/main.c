@@ -101,15 +101,14 @@ Connections:
 
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               0x02FF
+#define ONOFF_RESET_TIMES               3       // on / off times to reset device
+#define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
+#define MAX_RF_FAILED_TIME              10      // Reset RF module when reach max failed times of sending
 
 // Sensor reading duration
 #define SEN_READ_ALS                    0xFFFF
 #define SEN_READ_PIR                    0x1FFF
 #define SEN_READ_PM25                   0xFFFF
-
-#define ONOFF_RESET_TIMES               3       // on / off times to reset device
-#define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
-#define MAX_RF_FAILED_TIME              10      // Reset RF module when reach max failed times of sending
 
 // Uncomment this line to enable CCT brightness quadratic function
 #define CCT_BR_QUADRATIC_FUNC
@@ -126,8 +125,9 @@ const UC RF24_BASE_RADIO_ID[ADDRESS_WIDTH] = {0x00,0x54,0x49,0x54,0x44};
 
 // Public variables
 Config_t gConfig;
-MyMessage_t msg;
-uint8_t *pMsg = (uint8_t *)&msg;
+MyMessage_t sndMsg, rcvMsg;
+uint8_t *psndMsg = (uint8_t *)&sndMsg;
+uint8_t *prcvMsg = (uint8_t *)&rcvMsg;
 bool gIsChanged = FALSE;
 uint8_t _uniqueID[UNIQUE_ID_LEN];
 
@@ -409,7 +409,7 @@ bool SendMyMessage() {
 
       mutex = 0;
       RF24L01_set_mode_TX();
-      RF24L01_write_payload(pMsg, PLOAD_WIDTH);
+      RF24L01_write_payload(psndMsg, PLOAD_WIDTH);
 
       WaitMutex(0x1FFFF);
       if (mutex == 1) {
@@ -1578,7 +1578,7 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
   if(RF24L01_is_data_available()) {
     //Packet was received
     RF24L01_clear_interrupts();
-    RF24L01_read_payload(pMsg, PLOAD_WIDTH);
+    RF24L01_read_payload(prcvMsg, PLOAD_WIDTH);
     bMsgReady = ParseProtocol();
     return;
   }
