@@ -100,15 +100,15 @@ Connections:
 #define DELAY_800_ms                    319        // tim4, 5ms intrupt
 
 // Keep alive message interval, around 6 seconds
-#define RTE_TM_KEEP_ALIVE               0x02FF
+#define RTE_TM_KEEP_ALIVE               1000    // about 5s (1000 * 5ms)
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
 #define MAX_RF_FAILED_TIME              10      // Reset RF module when reach max failed times of sending
 
 // Sensor reading duration
-#define SEN_READ_ALS                    0xFFFF
-#define SEN_READ_PIR                    0x1FFF
-#define SEN_READ_PM25                   0xFFFF
+#define SEN_READ_ALS                    400    // about 2s (400 * 5ms)
+#define SEN_READ_PIR                    20     // about 100s (20 * 5ms)
+#define SEN_READ_PM25                   800    // about 4s (800 * 5ms)
 
 // Uncomment this line to enable CCT brightness quadratic function
 #define CCT_BR_QUADRATIC_FUNC
@@ -141,6 +141,18 @@ uint16_t pwm_Cold = 0;
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
 uint8_t m_cntRFSendFailed = 0;
+
+#ifdef EN_SENSOR_ALS
+   uint16_t als_tick = 0;
+#endif
+
+#ifdef EN_SENSOR_PIR
+   uint16_t pir_tick = 0;
+#endif
+   
+#ifdef EN_SENSOR_PM25       
+   uint16_t pm25_tick = 0;
+#endif 
 
 // Delayed operation in function idleProcess()
 typedef void (*OnTick_t)(uint32_t, uint8_t);  // Operation callback function typedef
@@ -542,7 +554,6 @@ int main( void ) {
 
 #ifdef EN_SENSOR_ALS
    uint8_t pre_als_value = 0;
-   uint16_t als_tick = 0;
    uint8_t lv_steps;
    bool lv_preBRChanged;
 #endif
@@ -550,12 +561,10 @@ int main( void ) {
 #ifdef EN_SENSOR_PIR
    bool pre_pir_st = FALSE;
    bool pir_st;
-   uint16_t pir_tick = 0;
 #endif
    
 #ifdef EN_SENSOR_PM25       
    uint16_t lv_pm2_5 = 0;
-   uint16_t pm25_tick = 0;
    uint8_t pm25_alivetick = 0;
 #endif   
       
@@ -659,7 +668,6 @@ int main( void ) {
     }
 #endif
     
-    uint8_t mIdle_tick = 0;
     while (mStatus == SYS_RUNNING) {
       
       // Feed the Watchdog
@@ -669,11 +677,11 @@ int main( void ) {
 #ifdef EN_SENSOR_PIR
       /// Read PIR
       if( gConfig.senMap & sensorPIR ) {
-        if( !bMsgReady && !pir_tick ) {
-          // Reset read timer
-          pir_tick = SEN_READ_PIR;
+        if( !bMsgReady && pir_tick > SEN_READ_PIR) {
           pir_st = pir_read();
           if( pre_pir_st != pir_st ) {
+            // Reset read timer
+            pir_tick = 0;
             // Send detection message
             pre_pir_st = pir_st;
             Msg_SenPIR(pre_pir_st);
@@ -705,8 +713,6 @@ int main( void ) {
               feed_wwdg();
             }
           }
-        } else if( pir_tick > 0 ) {
-          pir_tick--;
         }
       }
 #endif
@@ -714,11 +720,11 @@ int main( void ) {
 #ifdef EN_SENSOR_ALS
       /// Read ALS
       if( gConfig.senMap & sensorALS ) {
-        if( !bMsgReady && !als_tick ) {
-          // Reset read timer
-          als_tick = SEN_READ_ALS;
+        if( !bMsgReady && als_tick > SEN_READ_ALS ) {
           if( als_checkData() ) {
             if( pre_als_value != als_value ) {
+              // Reset read timer
+              als_tick = 0;
               // Send brightness message
               pre_als_value = als_value;
               Msg_SenALS(pre_als_value);
@@ -749,19 +755,17 @@ int main( void ) {
               }
             }
           }
-        } else if( als_tick > 0 ) {
-          als_tick--;
         }
       }
 #endif
       
 #ifdef EN_SENSOR_PM25
       if( gConfig.senMap & sensorDUST ) {
-        if( !bMsgReady && !pm25_tick ) {
-          pm25_tick = SEN_READ_PM25;
-          // Reset read timer
+        if( !bMsgReady && pm25_tick > SEN_READ_PM25 ) {
           if( pm25_ready ) {
             if( lv_pm2_5 != pm25_value ) {
+              // Reset read timer
+              pm25_tick = 0;
               lv_pm2_5 = pm25_value;
               if( lv_pm2_5 < 5 ) lv_pm2_5 = 8;
               // Send PM2.5 to Controller
@@ -775,20 +779,15 @@ int main( void ) {
               pm25_init();
             }
           }
-        } else if( pm25_tick > 0 ) {
-          pm25_tick--;
         }
       }
 #endif
       
       // Idle Tick
       if( !bMsgReady ) {
-        mIdle_tick++;
         // Check Keep Alive Timer
-        if( mIdle_tick == 0 ) {
-          if( ++mTimerKeepAlive > RTE_TM_KEEP_ALIVE ) {
-            Msg_DevBrightness(NODEID_GATEWAY);
-          }
+        if( mTimerKeepAlive > RTE_TM_KEEP_ALIVE ) {
+          Msg_DevBrightness(NODEID_GATEWAY);
         }
       }
       
@@ -1537,6 +1536,18 @@ bool isTimerCompleted(uint8_t _tmr) {
 
 // Execute delayed operations
 void idleProcess() {
+  // Tick
+  mTimerKeepAlive++;
+#ifdef EN_SENSOR_ALS
+   als_tick++;
+#endif
+#ifdef EN_SENSOR_PIR
+   pir_st++;
+#endif
+#ifdef EN_SENSOR_PM25       
+   pm25_tick++;
+#endif  
+  
   for( uint8_t _tmr = 0; _tmr < DELAY_TIMERS; _tmr++ ) {
     if( BF_GET(delay_func, _tmr, 1) ) {
       // Timer is enabled
