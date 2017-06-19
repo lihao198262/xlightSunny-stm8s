@@ -27,6 +27,7 @@ void pm25_init()
   data_ptr = 0;
   pm25_value = 0;
   pm25_ready = FALSE;
+  memset(mvData, 0x00, sizeof(u16) * PM25_MA_NUM);
   
   // Init serial ports
   uart2_config(2400);
@@ -75,6 +76,7 @@ void calc_pm25() {
   if( pm25_ready ) {
     float Vout = mvSum * 5.00 / PM25_MA_NUM / 1024.0;
     pm25_value = (u16)(Vout * PM25_K_CONSTANT);
+    if( pm25_value > 3000 ) pm25_init();
   }
 }
   

@@ -7,7 +7,7 @@
 #define ALS_DATA_PORT                   GPIOB
 #define ALS_DATA_PIN_ID                 GPIO_PIN_0
 
-#define ALS_MA_NUM             20
+#define ALS_MA_NUM             50
 
 bool als_ready = FALSE;
 bool als_alive = FALSE;

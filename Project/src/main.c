@@ -100,15 +100,16 @@ Connections:
 #define DELAY_800_ms                    319        // tim4, 5ms intrupt
 
 // Keep alive message interval, around 6 seconds
-#define RTE_TM_KEEP_ALIVE               1000    // about 5s (1000 * 5ms)
+#define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
 #define ONOFF_RESET_TIMES               3       // on / off times to reset device
 #define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
 #define MAX_RF_FAILED_TIME              10      // Reset RF module when reach max failed times of sending
 
 // Sensor reading duration
-#define SEN_READ_ALS                    400    // about 2s (400 * 5ms)
-#define SEN_READ_PIR                    20     // about 100s (20 * 5ms)
-#define SEN_READ_PM25                   800    // about 4s (800 * 5ms)
+#define SEN_READ_ALS                    200    // about 2s (200 * 10ms)
+#define SEN_READ_PIR                    10     // about 100ms (10 * 10ms)
+#define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
+#define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
 // Uncomment this line to enable CCT brightness quadratic function
 #define CCT_BR_QUADRATIC_FUNC
@@ -614,6 +615,7 @@ int main( void ) {
   
   // Init timer
   TIM4_5ms_handler = idleProcess;
+  TIM4_10ms_handler = tmrProcess;
   Time4_Init();
   
   // Init serial ports
@@ -721,7 +723,7 @@ int main( void ) {
       /// Read ALS
       if( gConfig.senMap & sensorALS ) {
         if( !bMsgReady && als_tick > SEN_READ_ALS ) {
-          if( als_checkData() ) {
+          if( als_ready ) {
             if( pre_als_value != als_value ) {
               // Reset read timer
               als_tick = 0;
@@ -1534,20 +1536,27 @@ bool isTimerCompleted(uint8_t _tmr) {
   return bFinished;
 }
 
-// Execute delayed operations
-void idleProcess() {
+// Execute timer operations
+void tmrProcess() {
   // Tick
   mTimerKeepAlive++;
 #ifdef EN_SENSOR_ALS
    als_tick++;
+   als_checkData();
 #endif
 #ifdef EN_SENSOR_PIR
    pir_st++;
 #endif
-#ifdef EN_SENSOR_PM25       
+#ifdef EN_SENSOR_PM25
    pm25_tick++;
-#endif  
-  
+#endif
+#ifdef EN_SENSOR_DHT       
+   dht_tick++;
+#endif   
+}
+
+// Execute delayed operations
+void idleProcess() {
   for( uint8_t _tmr = 0; _tmr < DELAY_TIMERS; _tmr++ ) {
     if( BF_GET(delay_func, _tmr, 1) ) {
       // Timer is enabled
