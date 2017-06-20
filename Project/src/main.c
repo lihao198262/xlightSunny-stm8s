@@ -101,9 +101,9 @@ Connections:
 
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
-#define ONOFF_RESET_TIMES               3       // on / off times to reset device
-#define REGISTER_RESET_TIMES            30      // default 5, super large value for show only to avoid ID mess
-#define MAX_RF_FAILED_TIME              10      // Reset RF module when reach max failed times of sending
+#define ONOFF_RESET_TIMES               3      // on / off times to reset device
+#define REGISTER_RESET_TIMES            30     // default 5, super large value for show only to avoid ID mess
+#define MAX_RF_FAILED_TIME              5      // Reset RF module when reach max failed times of sending
 
 // Sensor reading duration
 #define SEN_READ_ALS                    200    // about 2s (200 * 10ms)
@@ -413,12 +413,14 @@ bool SendMyMessage() {
     while (lv_tried++ <= gConfig.rptTimes ) {
       
       // delay to avoid conflict
+      /*
       if( bDelaySend && gConfig.nodeID >= NODEID_MIN_DEVCIE ) {
         //delay_ms(gConfig.nodeID % 25 * 10);
         mutex = 0;
         WaitMutex((gConfig.nodeID - NODEID_MIN_DEVCIE + 1) * (uint32_t)255);
         bDelaySend = FALSE;
       }
+      */
 
       mutex = 0;
       RF24L01_set_mode_TX();
@@ -428,19 +430,25 @@ bool SendMyMessage() {
       if (mutex == 1) {
         m_cntRFSendFailed = 0;
         break; // sent sccessfully
-      } else if( m_cntRFSendFailed++ > MAX_RF_FAILED_TIME ) {
-        // Reset RF module
-        m_cntRFSendFailed = 0;
-        // RF24 Chip in low power
-        RF24L01_DeInit();
-        delay = 0x1FFF;
-        while(delay--)feed_wwdg();
-        RF24L01_init();
-        NRF2401_EnableIRQ();
-        UpdateNodeAddress();
-        continue;
+      } else {
+        m_cntRFSendFailed++;
+        if( m_cntRFSendFailed >= MAX_RF_FAILED_TIME * 2 ) {
+          // Reset whole node
+          m_cntRFSendFailed = 0;
+          mStatus = SYS_RESET;
+          break;
+        } else if( m_cntRFSendFailed % MAX_RF_FAILED_TIME == 0 ) {
+          // Reset RF module
+          RF24L01_DeInit();
+          delay = 0x1FFF;
+          while(delay--)feed_wwdg();
+          RF24L01_init();
+          NRF2401_EnableIRQ();
+          UpdateNodeAddress();
+          continue;
+        }
       }
-      
+        
       //The transmission failed, Notes: mutex == 2 doesn't mean failed
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
