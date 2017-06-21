@@ -9,10 +9,13 @@
 #define NCF_QUERY                       0       // Query NCF, payload length = 0 (query) or n (ack)
 #define NCF_MAP_SENSOR                  1       // Sensor Bitmap, payload length = 2
 #define NCF_MAP_FUNC                    2       // Function Bitmap, payload length = 2
+
 #define NCF_DEV_ASSOCIATE               10      // Associate node to device(s), payload length = 2 to 8, a device per uint16_t
 #define NCF_DEV_EN_SDTM                 11      // Simple Direct Test Mode flag, payload length = 2
 #define NCF_DEV_MAX_NMRT                12      // Max. Node Message Repeat Times, payload length = 2
 #define NCF_DEV_SET_SUBID               13      // Set device subid, payload length = 2
+#define NCF_DEV_CONFIG_MODE             14      // Put Device into Config Mode, payload length = 2
+
 #define NCF_DATA_ALS_RANGE              50      // Lower and upper threshholds of ALS, payload length = 2
 #define NCF_DATA_TEMP_RANGE             51      // Tempreture threshholds, payload length = 2
 #define NCF_DATA_HUM_RANGE              52      // Humidity threshholds, payload length = 2

@@ -141,6 +141,7 @@ uint16_t pwm_Cold = 0;
 
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
+uint8_t m_cntRFReset = 0;
 uint8_t m_cntRFSendFailed = 0;
 
 #ifdef EN_SENSOR_ALS
@@ -429,15 +430,24 @@ bool SendMyMessage() {
       WaitMutex(0x1FFFF);
       if (mutex == 1) {
         m_cntRFSendFailed = 0;
+        m_cntRFReset = 0;
         break; // sent sccessfully
       } else {
         m_cntRFSendFailed++;
-        if( m_cntRFSendFailed >= MAX_RF_FAILED_TIME * 2 ) {
-          // Reset whole node
+        if( m_cntRFSendFailed >= MAX_RF_FAILED_TIME ) {
           m_cntRFSendFailed = 0;
-          mStatus = SYS_RESET;
-          break;
-        } else if( m_cntRFSendFailed % MAX_RF_FAILED_TIME == 0 ) {
+          m_cntRFReset++;
+          if( m_cntRFReset >= 3 ) {
+            // Cold Reset
+            WWDG->CR = 0x80;
+            m_cntRFReset = 0;
+            break;
+          } else if( m_cntRFReset >= 2 ) {
+            // Reset whole node
+            mStatus = SYS_RESET;
+            break;
+          }
+
           // Reset RF module
           RF24L01_DeInit();
           delay = 0x1FFF;
