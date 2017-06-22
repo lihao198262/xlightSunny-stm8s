@@ -112,7 +112,7 @@ Connections:
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
 // Uncomment this line to enable CCT brightness quadratic function
-#define CCT_BR_QUADRATIC_FUNC
+//#define CCT_BR_QUADRATIC_FUNC
 
 // Unique ID
 #if defined(STM8S105) || defined(STM8S005) || defined(STM8AF626x)

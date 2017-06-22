@@ -13,7 +13,13 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define WATT_PERCENTAGE                 ((uint16_t)100)                  // 50 to 100
+#define WATT_COLD_PERCENTAGE            ((uint16_t)70)                  // 50 to 100
+#define WATT_WARM_PERCENTAGE            ((uint16_t)62)                  // 50 to 100
+
+#define WATT_W_PERCENTAGE               ((uint16_t)80)                  // 50 to 100
+#define WATT_R_PERCENTAGE               ((uint16_t)75)                  // 50 to 100
+#define WATT_G_PERCENTAGE               ((uint16_t)70)                  // 50 to 100
+#define WATT_B_PERCENTAGE               ((uint16_t)65)                  // 50 to 100
 
 /* Private macro -------------------------------------------------------------*/
 /* Private variables ---------------------------------------------------------*/
@@ -28,7 +34,9 @@
 #define WARM_LIGHT_PWM_PIN_ID           GPIO_PIN_3
 
 #define TIM2_PWM_PERIOD         199
-#define TIM2_PWM_PULSE          200
+//#define TIM2_PWM_PULSE          200   // 10K
+#define TIM2_PWM_PULSE          2000    // 1K
+
 #endif
 
 #if defined(XRAINBOW) || defined(XMIRAGE)
@@ -49,7 +57,8 @@
 #define B_LIGHT_PWM_PIN_ID           GPIO_PIN_0
 
 #define TIM2_PWM_PERIOD         254
-#define TIM2_PWM_PULSE          200
+//#define TIM2_PWM_PULSE          200     // 10K
+#define TIM2_PWM_PULSE          2000    // 1K
 #endif
 
 /**
@@ -159,14 +168,118 @@ void initTim2PWMFunction (void)
   TIM2PWMFunction_Config ();
 }
 
-#if defined(XSUNNY)  
+#if defined(XSUNNY)
+// Option 1: linear
+// (50 - abs(Percentage - 50)) * (100 - WATT_COLD_PERCENTAGE) / 60
+// Option 2: Quadratic
+// (50 - abs(Percentage - 50))^2 * (100 - WATT_COLD_PERCENTAGE) / 2500;
+// Option 3: Lookup table
+typedef struct {
+  uint8_t percent;  
+  uint8_t value;
+} compensation_t;
+#define CCT_TABLE_ROWS          18
+const compensation_t cw_Table[] = {
+  {0,         0},
+  {10,        6},
+  {20,        10},
+  {30,        14},
+  {35,        17},
+  {40,        20},
+  {45,        23},
+  {50,        26},
+  {55,        24},
+  {60,        22},
+  {66,        20},
+  {70,        18},
+  {76,        16},
+  {80,        14},
+  {85,        11},
+  {90,        8},
+  {95,        4},
+  {100,       0}
+};
+
+const compensation_t ww_Table[] = {
+  {0,         0},
+  {10,        6},
+  {20,        12},
+  {30,        16},
+  {35,        18},
+  {40,        21},
+  {45,        26},
+  {50,        28},
+  {55,        25},
+  {60,        22},
+  {66,        20},
+  {70,        18},
+  {76,        15},
+  {80,        12},
+  {85,        9},
+  {90,        5},
+  {95,        2},
+  {100,       0}
+};
+
+unsigned char getColdLightCompensator(unsigned char ucPercent)
+{
+  unsigned char ucComp;
+  //u16 nTemp;
+  //if( ucPercent > 50 ) nTemp = 100 - ucPercent;
+  //else nTemp = ucPercent;
+  
+  // Linear
+  //ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + ucPercent * WATT_COLD_PERCENTAGE / 100;
+  // Quadratic
+  //ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + ucPercent * WATT_COLD_PERCENTAGE / 100;
+  //
+  //ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + ucPercent * WATT_COLD_PERCENTAGE / 100;
+  
+  // Lookup table
+  ucComp = ucPercent * WATT_COLD_PERCENTAGE / 100;
+  for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
+    if( ucPercent <= ww_Table[i].percent ) {
+      ucComp += ww_Table[i].value;
+      break;
+    }
+  }
+  
+  return ucComp;
+}
+
+unsigned char getWarmLightCompensator(unsigned char ucPercent)
+{
+  unsigned char ucComp;
+  //u16 nTemp;
+  //if( ucPercent > 50 ) nTemp = 100 - ucPercent;
+  //else nTemp = ucPercent;
+  
+  // Linear
+  //ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + ucPercent * WATT_WARM_PERCENTAGE / 100;
+  // Quadratic
+  //ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + ucPercent * WATT_WARM_PERCENTAGE / 100;
+  //
+  //ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + ucPercent * WATT_WARM_PERCENTAGE / 100;
+  
+  // Lookup table
+  ucComp = ucPercent * WATT_WARM_PERCENTAGE / 100;
+  for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
+    if( ucPercent <= cw_Table[i].percent ) {
+      ucComp += cw_Table[i].value;
+      break;
+    }
+  }
+  
+  return ucComp;
+}
+
 void regulateColdLightPulseWidth (unsigned char ucPercent)
 {
   // uint16_t pulseWidth;
   if (ucPercent > 100)
     ucPercent = 100;
   //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / ucPercent;
-  ucPercent = ucPercent * WATT_PERCENTAGE / 100;
+  ucPercent = getColdLightCompensator(ucPercent);
     
   //TIM2_CtrlPWMOutputs(DISABLE);
   //TIM2_Cmd(DISABLE);
@@ -181,7 +294,7 @@ void regulateWarmLightPulseWidth (unsigned char ucPercent)
   //uint16_t pulseWidth;
   if (ucPercent > 100)
     ucPercent = 100;
-  ucPercent = ucPercent * WATT_PERCENTAGE / 100;
+  ucPercent = getWarmLightCompensator(ucPercent);
   
   //pulseWidth = ucPercent * 2;
   //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / pulseWidth;
@@ -240,10 +353,10 @@ void LightRGBWBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WVa
   WValue = WValue * 80 / 255;
   */
   
-  RValue = RValue * (WATT_PERCENTAGE - 1) / 100 * BRPercent / 100;
-  GValue = GValue * (WATT_PERCENTAGE - 15) / 100 * BRPercent / 100;
-  BValue = BValue * (WATT_PERCENTAGE - 15) / 100 * BRPercent / 100;
-  WValue = WValue * (WATT_PERCENTAGE - 15) / 100 * BRPercent / 100;
+  RValue = RValue * WATT_W_PERCENTAGE / 100 * BRPercent / 100;
+  GValue = GValue * WATT_R_PERCENTAGE / 100 * BRPercent / 100;
+  BValue = BValue * WATT_G_PERCENTAGE / 100 * BRPercent / 100;
+  WValue = WValue * WATT_B_PERCENTAGE / 100 * BRPercent / 100;
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
   RGBWCtrl(RValue, GValue, BValue, WValue);
@@ -261,9 +374,9 @@ void LightRGBBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t BRPe
   BValue = BValue * 80 / 255;
   */
   
-  RValue = RValue * WATT_PERCENTAGE / 100 * BRPercent / 100;
-  GValue = GValue * WATT_PERCENTAGE / 100 * BRPercent / 100;
-  BValue = BValue * WATT_PERCENTAGE / 100 * BRPercent / 100;
+  RValue = RValue * WATT_R_PERCENTAGE / 100 * BRPercent / 100;
+  GValue = GValue * WATT_G_PERCENTAGE / 100 * BRPercent / 100;
+  BValue = BValue * WATT_B_PERCENTAGE / 100 * BRPercent / 100;
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
   RGBCtrl(RValue, GValue, BValue);
