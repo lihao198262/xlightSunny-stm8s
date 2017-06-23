@@ -11,6 +11,15 @@
 #include "LightPwmDrv.h"
 #include "_global.h"
 
+// WATT regulation method
+/// Option 0: no restriction
+/// Option 1: percentage
+/// Option 2: percentage + linear
+/// Option 3: percentage + quadratic
+/// Option 4: percentage + cubic function
+/// Option 10: percentage + table
+#define WATT_REGULATION_OPTION          10
+
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define WATT_COLD_PERCENTAGE            ((uint16_t)70)                  // 50 to 100
@@ -224,25 +233,41 @@ const compensation_t ww_Table[] = {
 unsigned char getColdLightCompensator(unsigned char ucPercent)
 {
   unsigned char ucComp;
-  //u16 nTemp;
-  //if( ucPercent > 50 ) nTemp = 100 - ucPercent;
-  //else nTemp = ucPercent;
+  u16 nPercentage = (u16)ucPercent * WATT_COLD_PERCENTAGE / 100;
+  u16 nTemp;
   
+  ucComp = nPercentage;
+  
+#if WATT_REGULATION_OPTION == 0
+  ucComp = ucPercent;
+  
+#elseif WATT_REGULATION_OPTION == 1
+  ucComp = nPercentage;
+
+#elseif WATT_REGULATION_OPTION < 10
+
+  if( ucPercent > 50 ) nTemp = 100 - ucPercent;
+  else nTemp = ucPercent;
+
+#if WATT_REGULATION_OPTION == 2
   // Linear
-  //ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + ucPercent * WATT_COLD_PERCENTAGE / 100;
+  ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + nPercentage;
+#elseif WATT_REGULATION_OPTION == 3
   // Quadratic
-  //ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + ucPercent * WATT_COLD_PERCENTAGE / 100;
-  //
-  //ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + ucPercent * WATT_COLD_PERCENTAGE / 100;
-  
+  ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + nPercentage;
+#elseif WATT_REGULATION_OPTION == 4
+  ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
+#endif
+
+#elseif WATT_REGULATION_OPTION == 10
   // Lookup table
-  ucComp = ucPercent * WATT_COLD_PERCENTAGE / 100;
   for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
-    if( ucPercent <= ww_Table[i].percent ) {
-      ucComp += ww_Table[i].value;
+    if( ucPercent <= cw_Table[i].percent ) {
+      ucComp = nPercentage + cw_Table[i].value;
       break;
     }
   }
+#endif
   
   return ucComp;
 }
@@ -250,25 +275,41 @@ unsigned char getColdLightCompensator(unsigned char ucPercent)
 unsigned char getWarmLightCompensator(unsigned char ucPercent)
 {
   unsigned char ucComp;
-  //u16 nTemp;
-  //if( ucPercent > 50 ) nTemp = 100 - ucPercent;
-  //else nTemp = ucPercent;
+  u16 nPercentage = (u16)ucPercent * WATT_WARM_PERCENTAGE / 100;
+  u16 nTemp;
   
+  ucComp = nPercentage;
+  
+#if WATT_REGULATION_OPTION == 0
+  ucComp = ucPercent;
+  
+#elseif WATT_REGULATION_OPTION == 1
+  ucComp = nPercentage;
+
+#elseif WATT_REGULATION_OPTION < 10
+
+  if( ucPercent > 50 ) nTemp = 100 - ucPercent;
+  else nTemp = ucPercent;
+
+#if WATT_REGULATION_OPTION == 2
   // Linear
-  //ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + ucPercent * WATT_WARM_PERCENTAGE / 100;
+  ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + nPercentage;
+#elseif WATT_REGULATION_OPTION == 3
   // Quadratic
-  //ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + ucPercent * WATT_WARM_PERCENTAGE / 100;
-  //
-  //ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + ucPercent * WATT_WARM_PERCENTAGE / 100;
-  
+  ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + nPercentage;
+#elseif WATT_REGULATION_OPTION == 4
+  ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
+#endif
+
+#elseif WATT_REGULATION_OPTION == 10
   // Lookup table
-  ucComp = ucPercent * WATT_WARM_PERCENTAGE / 100;
   for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
-    if( ucPercent <= cw_Table[i].percent ) {
-      ucComp += cw_Table[i].value;
+    if( ucPercent <= ww_Table[i].percent ) {
+      ucComp = nPercentage + ww_Table[i].value;
       break;
     }
   }
+#endif
   
   return ucComp;
 }

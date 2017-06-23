@@ -101,9 +101,13 @@ Connections:
 
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
-#define ONOFF_RESET_TIMES               3      // on / off times to reset device
-#define REGISTER_RESET_TIMES            30     // default 5, super large value for show only to avoid ID mess
 #define MAX_RF_FAILED_TIME              5      // Reset RF module when reach max failed times of sending
+
+// For Gu'an Demo Classroom
+#define ONOFF_RESET_TIMES               10     // on / off times to reset device, regular value is 3
+
+#define RAPID_PRESENTATION                     // Don't wait for presentation-ack
+#define REGISTER_RESET_TIMES            30     // default 5, super large value for show only to avoid ID mess
 
 // Sensor reading duration
 #define SEN_READ_ALS                    200    // about 2s (200 * 10ms)
@@ -509,6 +513,10 @@ bool SayHelloToDevice(bool infinate) {
         // Send Presentation Message
         Msg_Presentation();
         _presentCnt++;
+#ifdef RAPID_PRESENTATION
+        // Don't wait for ack
+        mStatus = SYS_RUNNING;
+#endif        
       }
            
       if( !SendMyMessage() ) {
