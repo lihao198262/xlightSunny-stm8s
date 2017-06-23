@@ -241,10 +241,10 @@ unsigned char getColdLightCompensator(unsigned char ucPercent)
 #if WATT_REGULATION_OPTION == 0
   ucComp = ucPercent;
   
-#elseif WATT_REGULATION_OPTION == 1
+#elif WATT_REGULATION_OPTION == 1
   ucComp = nPercentage;
 
-#elseif WATT_REGULATION_OPTION < 10
+#elif WATT_REGULATION_OPTION < 10
 
   if( ucPercent > 50 ) nTemp = 100 - ucPercent;
   else nTemp = ucPercent;
@@ -252,14 +252,14 @@ unsigned char getColdLightCompensator(unsigned char ucPercent)
 #if WATT_REGULATION_OPTION == 2
   // Linear
   ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + nPercentage;
-#elseif WATT_REGULATION_OPTION == 3
+#elif WATT_REGULATION_OPTION == 3
   // Quadratic
   ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + nPercentage;
-#elseif WATT_REGULATION_OPTION == 4
+#elif WATT_REGULATION_OPTION == 4
   ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
 #endif
 
-#elseif WATT_REGULATION_OPTION == 10
+#elif WATT_REGULATION_OPTION == 10
   // Lookup table
   for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
     if( ucPercent <= cw_Table[i].percent ) {
@@ -283,10 +283,10 @@ unsigned char getWarmLightCompensator(unsigned char ucPercent)
 #if WATT_REGULATION_OPTION == 0
   ucComp = ucPercent;
   
-#elseif WATT_REGULATION_OPTION == 1
+#elif WATT_REGULATION_OPTION == 1
   ucComp = nPercentage;
 
-#elseif WATT_REGULATION_OPTION < 10
+#elif WATT_REGULATION_OPTION < 10
 
   if( ucPercent > 50 ) nTemp = 100 - ucPercent;
   else nTemp = ucPercent;
@@ -294,14 +294,14 @@ unsigned char getWarmLightCompensator(unsigned char ucPercent)
 #if WATT_REGULATION_OPTION == 2
   // Linear
   ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + nPercentage;
-#elseif WATT_REGULATION_OPTION == 3
+#elif WATT_REGULATION_OPTION == 3
   // Quadratic
   ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + nPercentage;
-#elseif WATT_REGULATION_OPTION == 4
+#elif WATT_REGULATION_OPTION == 4
   ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
 #endif
 
-#elseif WATT_REGULATION_OPTION == 10
+#elif WATT_REGULATION_OPTION == 10
   // Lookup table
   for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
     if( ucPercent <= ww_Table[i].percent ) {
