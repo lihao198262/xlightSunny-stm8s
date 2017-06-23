@@ -18,7 +18,7 @@
 /// Option 3: percentage + quadratic
 /// Option 4: percentage + cubic function
 /// Option 10: percentage + table
-#define WATT_REGULATION_OPTION          10
+u8 WATT_REGULATION_OPTION = 0;
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -187,6 +187,7 @@ typedef struct {
   uint8_t percent;  
   uint8_t value;
 } compensation_t;
+
 #define CCT_TABLE_ROWS          18
 const compensation_t cw_Table[] = {
   {0,         0},
@@ -234,41 +235,37 @@ unsigned char getColdLightCompensator(unsigned char ucPercent)
 {
   unsigned char ucComp;
   u16 nPercentage = (u16)ucPercent * WATT_COLD_PERCENTAGE / 100;
-  u16 nTemp;
   
   ucComp = nPercentage;
   
-#if WATT_REGULATION_OPTION == 0
-  ucComp = ucPercent;
-  
-#elif WATT_REGULATION_OPTION == 1
-  ucComp = nPercentage;
+  if( WATT_REGULATION_OPTION == 0 ) {
+    ucComp = ucPercent;
+  } else if( WATT_REGULATION_OPTION == 1 ) {
+    ucComp = nPercentage;
+  } else if( WATT_REGULATION_OPTION < 10 ) {
+    u16 nTemp;
+    if( ucPercent > 50 ) nTemp = 100 - ucPercent;
+    else nTemp = ucPercent;
 
-#elif WATT_REGULATION_OPTION < 10
-
-  if( ucPercent > 50 ) nTemp = 100 - ucPercent;
-  else nTemp = ucPercent;
-
-#if WATT_REGULATION_OPTION == 2
-  // Linear
-  ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + nPercentage;
-#elif WATT_REGULATION_OPTION == 3
-  // Quadratic
-  ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + nPercentage;
-#elif WATT_REGULATION_OPTION == 4
-  ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
-#endif
-
-#elif WATT_REGULATION_OPTION == 10
-  // Lookup table
-  for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
-    if( ucPercent <= cw_Table[i].percent ) {
-      ucComp = nPercentage + cw_Table[i].value;
-      break;
+    if( WATT_REGULATION_OPTION == 2 ) {
+      // Linear
+      ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + nPercentage;
+    } else if( WATT_REGULATION_OPTION == 3 ) {
+      // Quadratic
+      ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + nPercentage;
+    } else if( WATT_REGULATION_OPTION == 4 ) {
+      ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
+    }
+  } else if( WATT_REGULATION_OPTION == 10 ) {
+    // Lookup table
+    for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
+      if( ucPercent <= cw_Table[i].percent ) {
+        ucComp = nPercentage + cw_Table[i].value;
+        break;
+      }
     }
   }
-#endif
-  
+
   return ucComp;
 }
 
@@ -276,41 +273,35 @@ unsigned char getWarmLightCompensator(unsigned char ucPercent)
 {
   unsigned char ucComp;
   u16 nPercentage = (u16)ucPercent * WATT_WARM_PERCENTAGE / 100;
-  u16 nTemp;
   
   ucComp = nPercentage;
-  
-#if WATT_REGULATION_OPTION == 0
-  ucComp = ucPercent;
-  
-#elif WATT_REGULATION_OPTION == 1
-  ucComp = nPercentage;
-
-#elif WATT_REGULATION_OPTION < 10
-
-  if( ucPercent > 50 ) nTemp = 100 - ucPercent;
-  else nTemp = ucPercent;
-
-#if WATT_REGULATION_OPTION == 2
-  // Linear
-  ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + nPercentage;
-#elif WATT_REGULATION_OPTION == 3
-  // Quadratic
-  ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + nPercentage;
-#elif WATT_REGULATION_OPTION == 4
-  ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
-#endif
-
-#elif WATT_REGULATION_OPTION == 10
-  // Lookup table
-  for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
-    if( ucPercent <= ww_Table[i].percent ) {
-      ucComp = nPercentage + ww_Table[i].value;
-      break;
+  if( WATT_REGULATION_OPTION == 0 ) {
+    ucComp = ucPercent;
+  } else if( WATT_REGULATION_OPTION == 1 ) {
+    ucComp = nPercentage;
+  } else if( WATT_REGULATION_OPTION < 10 ) {
+    u16 nTemp;
+    if( ucPercent > 50 ) nTemp = 100 - ucPercent;
+    else nTemp = ucPercent;
+    if( WATT_REGULATION_OPTION == 2 ) {
+      // Linear
+      ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + nPercentage;
+    } else if( WATT_REGULATION_OPTION == 3 ) {
+      // Quadratic
+      ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + nPercentage;
+    } else if( WATT_REGULATION_OPTION == 4 ) {
+      ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
+    }
+  } else if( WATT_REGULATION_OPTION == 10 ) {
+    // Lookup table
+    for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
+      if( ucPercent <= ww_Table[i].percent ) {
+        ucComp = nPercentage + ww_Table[i].value;
+        break;
+      }
     }
   }
-#endif
-  
+
   return ucComp;
 }
 
