@@ -158,6 +158,7 @@ typedef enum {
         
         V_RELAY_ON = 65,        // Xlight relay on
         V_RELAY_OFF,            // Xlight relay off
+        V_RELAY_MAP,		// Xlight relay keymap
 
 } mysensor_data;
 

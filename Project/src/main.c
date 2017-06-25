@@ -453,7 +453,7 @@ bool SendMyMessage() {
           }
 
           // Reset RF module
-          RF24L01_DeInit();
+          //RF24L01_DeInit();
           delay = 0x1FFF;
           while(delay--)feed_wwdg();
           RF24L01_init();
@@ -654,7 +654,14 @@ int main( void ) {
     // Go on only if NRF chip is presented
     gConfig.present = 0;
     RF24L01_init();
-    while(!NRF24L01_Check())feed_wwdg();
+    u16 timeoutRFcheck = 0;
+    while(!NRF24L01_Check()) {
+      if( timeoutRFcheck > 50 ) {
+        WWDG->CR = 0x80;
+        break;
+      }
+      feed_wwdg();
+    }
 
     // Try to communicate with sibling MCUs (STM8S003F), 
     /// if got response, which means the device supports indiviual ring control.
