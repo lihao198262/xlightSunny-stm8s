@@ -163,6 +163,8 @@ typedef struct
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
   UC pirLevel[2];
+  UC cntRFReset               :4;           // RF reset count
+  UC reserved1                :4;
 } Config_t;
 
 extern Config_t gConfig;

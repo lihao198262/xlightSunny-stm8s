@@ -102,6 +102,7 @@ Connections:
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
 #define MAX_RF_FAILED_TIME              5      // Reset RF module when reach max failed times of sending
+#define MAX_RF_RESET_TIME               3      // Reset Node when reach max times of RF module consecutive reset
 
 // For Gu'an Demo Classroom
 #define ONOFF_RESET_TIMES               10     // on / off times to reset device, regular value is 3
@@ -145,7 +146,6 @@ uint16_t pwm_Cold = 0;
 
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
-uint8_t m_cntRFReset = 0;
 uint8_t m_cntRFSendFailed = 0;
 
 #ifdef EN_SENSOR_ALS
@@ -434,19 +434,21 @@ bool SendMyMessage() {
       WaitMutex(0x1FFFF);
       if (mutex == 1) {
         m_cntRFSendFailed = 0;
-        m_cntRFReset = 0;
+        gConfig.cntRFReset = 0;
         break; // sent sccessfully
       } else {
         m_cntRFSendFailed++;
         if( m_cntRFSendFailed >= MAX_RF_FAILED_TIME ) {
           m_cntRFSendFailed = 0;
-          m_cntRFReset++;
-          if( m_cntRFReset >= 3 ) {
+          gConfig.cntRFReset++;
+          if( gConfig.cntRFReset >= MAX_RF_RESET_TIME ) {
+            // Save Data
+            gIsChanged = TRUE;
+            SaveConfig();
             // Cold Reset
             WWDG->CR = 0x80;
-            m_cntRFReset = 0;
             break;
-          } else if( m_cntRFReset >= 2 ) {
+          } else if( gConfig.cntRFReset > 1 ) {
             // Reset whole node
             mStatus = SYS_RESET;
             break;
@@ -671,12 +673,16 @@ int main( void ) {
     
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
-      DEVST_OnOff = 0;      // Ensure to turn on the light at next step
-      SetDeviceFilter(gConfig.filter);
-      SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
-      //delay_ms(1500);   // about 1.5 sec
-      mutex = 0;
-      WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
+      if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
+        DEVST_OnOff = 0;      // Ensure to turn on the light at next step
+        SetDeviceFilter(gConfig.filter);
+        SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
+        //delay_ms(1500);   // about 1.5 sec
+        mutex = 0;
+        WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
+      } else {
+        gConfig.cntRFReset == 0;
+      }
     }
   
     // IRQ
