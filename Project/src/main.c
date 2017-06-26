@@ -101,7 +101,7 @@ Connections:
 
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
-#define MAX_RF_FAILED_TIME              5      // Reset RF module when reach max failed times of sending
+#define MAX_RF_FAILED_TIME              8      // Reset RF module when reach max failed times of sending
 #define MAX_RF_RESET_TIME               3      // Reset Node when reach max times of RF module consecutive reset
 
 // For Gu'an Demo Classroom
