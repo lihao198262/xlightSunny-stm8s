@@ -163,6 +163,8 @@ typedef struct
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
   UC pirLevel[2];
+  UC cntRFReset               :4;           // RF reset count
+  UC reserved1                :4;
 } Config_t;
 
 extern Config_t gConfig;
@@ -180,6 +182,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
 bool SetDeviceStatus(bool _sw, uint8_t _br, uint16_t _cct, uint8_t _ring);
 bool SetDeviceHue(bool _sw, uint8_t _br, uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring);
 bool SetDeviceFilter(uint8_t _filter);
+void tmrProcess();
 void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 
