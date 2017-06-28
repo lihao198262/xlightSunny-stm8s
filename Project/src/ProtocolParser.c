@@ -73,11 +73,13 @@ uint8_t ParseProtocol(){
         break;
 
       case NCF_DEV_SET_SUBID:
-        gConfig.subID = rcvMsg.payload.data[0];
+        if( _specificNode )
+          gConfig.subID = rcvMsg.payload.data[0];
         break;
 
       case NCF_DEV_EN_SDTM:
-        gConfig.enSDTM = rcvMsg.payload.data[0];
+        if( _specificNode )
+          gConfig.enSDTM = rcvMsg.payload.data[0];
         break;
         
       case NCF_DEV_MAX_NMRT:

@@ -199,7 +199,7 @@ void RF24L01_setup(uint8_t channel, uint8_t boardcast) {
   *((uint8_t *)&RF_SETUP) = 0;
   RF_SETUP.RF_PWR = 0x03;   // 01: Low. 03: Max
   // '00' is 1Mbs, '01' is 2Mbs, '10' is 250Kbs
-  RF_SETUP.RF_DR_LOW = 0x00;
+  RF_SETUP.RF_DR_LOW = 0x01;
   RF_SETUP.RF_DR_HIGH = 0x00;
   RF_SETUP.LNA_HCURR = 0x01;
   RF24L01_write_register(RF24L01_reg_RF_SETUP, ((uint8_t *)&RF_SETUP), 1);
