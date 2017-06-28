@@ -50,9 +50,11 @@ uint8_t ParseProtocol(){
         gIsChanged = TRUE;
         GotNodeID();
         // Increase brightness to indicate ID required
-        SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
-        Msg_DevBrightness(_sender);
-        return 1;
+        if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
+          SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
+          Msg_DevBrightness(_sender);
+          return 1;
+        }
       }
     } else if( _type == I_REBOOT ) {
       if( IS_MINE_SUBID(_sensor) || _specificNode ) {

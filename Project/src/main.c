@@ -99,11 +99,6 @@ Connections:
 #define DELAY_500_ms                    199        // tim4, 5ms intrupt
 #define DELAY_800_ms                    319        // tim4, 5ms intrupt
 
-// Keep alive message interval, around 6 seconds
-#define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
-#define MAX_RF_FAILED_TIME              8      // Reset RF module when reach max failed times of sending
-#define MAX_RF_RESET_TIME               3      // Reset Node when reach max times of RF module consecutive reset
-
 // For Gu'an Demo Classroom
 #define ONOFF_RESET_TIMES               10     // on / off times to reset device, regular value is 3
 
@@ -271,6 +266,7 @@ void LoadConfig()
 {
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+    //gConfig.version = XLA_VERSION + 1;
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
        || gConfig.type != XLA_PRODUCT_Type ) {
        //|| strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
@@ -324,6 +320,10 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
+    gConfig.nodeID = 1;
+    gConfig.subID = 1;          // Classroom light: 1
+    //gConfig.subID = 2;          // Blackboard light: 2
+    
     if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
