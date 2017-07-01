@@ -320,7 +320,7 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
-    gConfig.nodeID = 1;
+    gConfig.nodeID = 15;
     gConfig.subID = 1;          // Classroom light: 1
     //gConfig.subID = 2;          // Blackboard light: 2
     
@@ -674,9 +674,11 @@ int main( void ) {
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
       if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
-        DEVST_OnOff = 0;      // Ensure to turn on the light at next step
+        // Restore to previous state
+        bool preSwitch = DEVST_OnOff;
+        DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
         SetDeviceFilter(gConfig.filter);
-        SetDeviceOnOff(TRUE, RING_ID_ALL); // Always turn light on
+        SetDeviceOnOff(preSwitch, RING_ID_ALL);
         //delay_ms(1500);   // about 1.5 sec
         mutex = 0;
         WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
