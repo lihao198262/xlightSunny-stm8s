@@ -320,8 +320,8 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
-    gConfig.nodeID = 15;
-    gConfig.subID = 1;          // Classroom light: 1
+    //gConfig.nodeID = 15;
+    //gConfig.subID = 1;          // Classroom light: 1
     //gConfig.subID = 2;          // Blackboard light: 2
     
     if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
@@ -432,11 +432,14 @@ bool SendMyMessage() {
       RF24L01_write_payload(psndMsg, PLOAD_WIDTH);
 
       WaitMutex(0x1FFFF);
+      
+#ifndef ENABLE_SDTM      
       if (mutex == 1) {
         m_cntRFSendFailed = 0;
         gConfig.cntRFReset = 0;
         break; // sent sccessfully
-      } else {
+      }
+      else {
         m_cntRFSendFailed++;
         if( m_cntRFSendFailed >= MAX_RF_FAILED_TIME ) {
           m_cntRFSendFailed = 0;
@@ -464,13 +467,17 @@ bool SendMyMessage() {
           continue;
         }
       }
-        
+      
       //The transmission failed, Notes: mutex == 2 doesn't mean failed
       //It happens when rx address defers from tx address
       //asm("nop"); //Place a breakpoint here to see memory
       // Repeat the message if necessary
       delay = 0xFFF;
       while(delay--)feed_wwdg();
+#else
+      break;
+#endif
+
     }
     
     // Switch back to receive mode
@@ -826,6 +833,7 @@ int main( void ) {
       }
 #endif
       
+#ifndef ENABLE_SDTM   
       // Idle Tick
       if( !bMsgReady ) {
         // Check Keep Alive Timer
@@ -833,6 +841,7 @@ int main( void ) {
           Msg_DevBrightness(NODEID_GATEWAY);
         }
       }
+#endif      
       
       // Send message if ready
       SendMyMessage();
