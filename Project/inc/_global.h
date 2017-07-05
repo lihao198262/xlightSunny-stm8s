@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-//#define ENABLE_SDTM
+#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor
@@ -104,6 +104,11 @@
 #define MAX_FASTSTEP_TIMES      20
 #define CCT_STEP                50
 #define RGB_STEP                3
+
+// Keep alive message interval, around 6 seconds
+#define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
+#define MAX_RF_FAILED_TIME              8      // Reset RF module when reach max failed times of sending
+#define MAX_RF_RESET_TIME               3      // Reset Node when reach max times of RF module consecutive reset
 
 // Whether allow individual color control of ring
 /// Uncomment this line only if hardware supports

@@ -50,9 +50,11 @@ uint8_t ParseProtocol(){
         gIsChanged = TRUE;
         GotNodeID();
         // Increase brightness to indicate ID required
-        SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
-        Msg_DevBrightness(_sender);
-        return 1;
+        if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
+          SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
+          Msg_DevBrightness(_sender);
+          return 1;
+        }
       }
     } else if( _type == I_REBOOT ) {
       if( IS_MINE_SUBID(_sensor) || _specificNode ) {
@@ -73,11 +75,13 @@ uint8_t ParseProtocol(){
         break;
 
       case NCF_DEV_SET_SUBID:
-        gConfig.subID = rcvMsg.payload.data[0];
+        if( _specificNode )
+          gConfig.subID = rcvMsg.payload.data[0];
         break;
 
       case NCF_DEV_EN_SDTM:
-        gConfig.enSDTM = rcvMsg.payload.data[0];
+        if( _specificNode )
+          gConfig.enSDTM = rcvMsg.payload.data[0];
         break;
         
       case NCF_DEV_MAX_NMRT:
