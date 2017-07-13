@@ -18,7 +18,7 @@
 /// Option 3: percentage + quadratic
 /// Option 4: percentage + cubic function
 /// Option 10: percentage + table
-u8 WATT_REGULATION_OPTION = 10;
+u8 WATT_REGULATION_OPTION = 0;
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
