@@ -119,15 +119,33 @@
 typedef enum
 {
   devtypUnknown = 0,
-  devtypCRing3,     // Color ring - Rainbow
+  // Color ring - Rainbow
+  devtypCRing3,
   devtypCRing2,
-  devtypCRing1,
-  devtypWRing3,     // White ring - Sunny
+  devtypCBar,
+  devtypCFrame,
+  devtypCWave,
+  devtypCRing1 = 31,
+
+  // White ring - Sunny
+  devtypWRing3 = 32,
   devtypWRing2,
-  devtypWRing1,
-  devtypMRing3 = 8, // Color & Motion ring - Mirage
+  devtypWBar,
+  devtypWFrame,
+  devtypWWave,
+  devtypWSquare60,      // 60 * 60
+  devtypWPanel120_30,   // 120 * 30
+  devtypWBlackboard,    // Blackboard lamp
+  devtypWRing1 = 95,
+
+  // Color & Motion ring - Mirage
+  devtypMRing3 = 96,
   devtypMRing2,
-  devtypMRing1,
+  devtypMBar,
+  devtypMFrame,
+  devtypMWave,
+  devtypMRing1 = 127,
+
   devtypDummy = 255
 } devicetype_t;
 
