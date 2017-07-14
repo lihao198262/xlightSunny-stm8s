@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-#define ENABLE_SDTM
+//#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor
@@ -145,6 +145,41 @@ typedef struct
   UC L3                       :8;           // Length of thread 3
 } Hue_t;
 
+// Xlight Application Identification
+#define XLA_VERSION               0x08
+#define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
+
+#if XLA_VERSION > 0x07
+typedef struct
+{
+  // Static & status parameters
+  UC version                  :8;           // Data version, other than 0xFF
+  UC present                  :1;           // 0 - not present; 1 - present
+  UC filter                   :4;
+  UC swTimes                  :3;           // On/Off times
+  UC cntRFReset               :4;           // RF reset count
+  UC reserved0                :4;
+  Hue_t ring[MAX_RING_NUM];
+
+  // Configurable parameters
+  UC nodeID;                                // Node ID for this device
+  UC subID;                                 // SubID
+  UC NetworkID[6];
+  UC rfChannel;                             // RF Channel: [0..127]
+  UC rfPowerLevel             :2;           // RF Power Level 0..3
+  UC rfDataRate               :2;           // RF Data Rate [0..2], 0 for 1Mbps, or 1 for 2Mbps, 2 for 250kbs
+  UC rptTimes                 :2;           // Sending message max repeat times [0..3]
+  UC enSDTM                   :1;           // Simple Direct Test Mode Flag
+  UC hasSiblingMCU            :1;           // Whether sibling MCU presents
+  UC type;                                  // Type of lamp
+  US token;
+  UC reserved1                :8;
+  US senMap                   :16;          // Sensor Map
+  US funcMap                  :16;          // Function Map
+  UC alsLevel[2];
+  UC pirLevel[2];
+} Config_t;
+#else
 typedef struct
 {
   UC version                  :8;           // Data version, other than 0xFF
@@ -171,6 +206,7 @@ typedef struct
   UC cntRFReset               :4;           // RF reset count
   UC reserved1                :4;
 } Config_t;
+#endif
 
 extern Config_t gConfig;
 extern bool gIsChanged;

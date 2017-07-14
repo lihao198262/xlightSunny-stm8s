@@ -49,10 +49,6 @@ Connections:
 
 */
 
-// Xlight Application Identification
-#define XLA_VERSION               0x07
-#define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
-
 // Choose Product Name & Type
 /// Sunny
 #if defined(XSUNNY)
