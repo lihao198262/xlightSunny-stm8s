@@ -70,9 +70,12 @@
 #define NODEID_MIN_REMOTE       64
 #define NODEID_MAX_REMOTE       127
 #define NODEID_PROJECTOR        128
+#define NODEID_KEYSIMULATOR     129
+#define NODEID_SUPERSENSOR      130
 #define NODEID_SMARTPHONE       139
 #define NODEID_MIN_GROUP        192
 #define NODEID_MAX_GROUP        223
+#define NODEID_RF_SCANNER       250
 #define NODEID_DUMMY            255
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
@@ -205,7 +208,7 @@ typedef struct
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
   UC enSDTM                   :1;           // Simple Direct Test Mode Flag
-  UC reserved                 :2;
+  UC rfDataRate               :2;           // RF Data Rate [0..2], 0 for 1Mbps, or 1 for 2Mbps, 2 for 250kbs
   UC filter                   :4;
   UC type;                                  // Type of lamp
   UC subID;                                 // SubID
@@ -223,6 +226,7 @@ typedef struct
   UC pirLevel[2];
   UC cntRFReset               :4;           // RF reset count
   UC reserved1                :4;
+  UC rfChannel;                             // RF Channel: [0..127]
 } Config_t;
 #endif
 
