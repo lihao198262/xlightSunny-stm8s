@@ -264,7 +264,7 @@ void LoadConfig()
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     //gConfig.version = XLA_VERSION + 1;
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.type != XLA_PRODUCT_Type ) {
+       || gConfig.type != XLA_PRODUCT_Type || gConfig.rfChannel > 127 || gConfig.rfDataRate > 2 ) {
        //|| strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
@@ -283,7 +283,9 @@ void LoadConfig()
 #endif      
       gConfig.ring[1] = gConfig.ring[0];
       gConfig.ring[2] = gConfig.ring[0];
+      gConfig.rfChannel = RF24_CHANNEL;
       gConfig.rfPowerLevel = RF24_PA_MAX;
+      gConfig.rfDataRate = RF24_1MBPS;      
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
@@ -332,20 +334,25 @@ void LoadConfig()
 #endif
 }
 
-void UpdateNodeAddress(void) {
+void UpdateNodeAddress(uint8_t _tx) {
   memcpy(rx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
   rx_addr[0] = gConfig.nodeID;
   memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
+  
+  if( _tx == NODEID_RF_SCANNER ) {
+    tx_addr[0] = NODEID_RF_SCANNER;
+  } else {  
 #ifdef ENABLE_SDTM  
-  tx_addr[0] = NODEID_MIN_REMOTE;
-#else
-  if( gConfig.enSDTM ) {
     tx_addr[0] = NODEID_MIN_REMOTE;
-  } else {
-    tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+#else
+    if( gConfig.enSDTM ) {
+      tx_addr[0] = NODEID_MIN_REMOTE;
+    } else {
+      tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+    }
+#endif
   }
-#endif  
-  RF24L01_setup(RF24_CHANNEL, BROADCAST_ADDRESS);     // With openning the boardcast pipe
+  RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
 bool WaitMutex(uint32_t _timeout) {
@@ -354,6 +361,18 @@ bool WaitMutex(uint32_t _timeout) {
     feed_wwdg();
   }
   return FALSE;
+}
+
+bool NeedUpdateRFAddress(uint8_t _dest) {
+  bool rc = FALSE;
+  if( sndMsg.header.destination == NODEID_RF_SCANNER && tx_addr[0] != NODEID_RF_SCANNER ) {
+    UpdateNodeAddress(NODEID_RF_SCANNER);
+    rc = TRUE;
+  } else if( sndMsg.header.destination != NODEID_RF_SCANNER && tx_addr[0] != NODEID_GATEWAY ) {
+    UpdateNodeAddress(NODEID_GATEWAY);
+    rc = TRUE;
+  }
+  return rc;
 }
 
 uint8_t GetSteps(uint32_t _from, uint32_t _to, bool _fast)
@@ -409,6 +428,9 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
 bool SendMyMessage() {
   if( bMsgReady ) {
     
+    // Change tx destination if necessary
+    NeedUpdateRFAddress(sndMsg.header.destination);
+    
     uint8_t lv_tried = 0;
     uint16_t delay;
     while (lv_tried++ <= gConfig.rptTimes ) {
@@ -459,7 +481,7 @@ bool SendMyMessage() {
           while(delay--)feed_wwdg();
           RF24L01_init();
           NRF2401_EnableIRQ();
-          UpdateNodeAddress();
+          UpdateNodeAddress(NODEID_GATEWAY);
           continue;
         }
       }
@@ -489,7 +511,7 @@ bool SendMyMessage() {
 
 void GotNodeID() {
   mGotNodeID = TRUE;
-  UpdateNodeAddress();
+  UpdateNodeAddress(NODEID_GATEWAY);
   SaveConfig();
 }
 
@@ -506,7 +528,7 @@ bool SayHelloToDevice(bool infinate) {
   bool _doNow = FALSE;
 
   // Update RF addresses and Setup RF environment
-  UpdateNodeAddress();
+  UpdateNodeAddress(NODEID_GATEWAY);
 
   while(mStatus < SYS_RUNNING) {
     if( _count++ == 0 ) {
@@ -553,7 +575,7 @@ bool SayHelloToDevice(bool infinate) {
       _presentCnt = 0;
       // Reset RF Address
       InitNodeAddress();
-      UpdateNodeAddress();
+      UpdateNodeAddress(NODEID_GATEWAY);
       mStatus = SYS_WAIT_NODEID;
       _doNow = TRUE;
     }
@@ -696,7 +718,7 @@ int main( void ) {
 #ifdef ENABLE_SDTM
     gConfig.nodeID = BASESERVICE_ADDRESS;
     memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
-    UpdateNodeAddress();
+    UpdateNodeAddress(NODEID_GATEWAY);
     Msg_DevStatus(NODEID_MIN_REMOTE, RING_ID_ALL);
     SendMyMessage();
     mStatus = SYS_RUNNING;
@@ -704,7 +726,7 @@ int main( void ) {
     if( gConfig.enSDTM ) {
       gConfig.nodeID = BASESERVICE_ADDRESS;
       memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
-      UpdateNodeAddress();
+      UpdateNodeAddress(NODEID_GATEWAY);
       Msg_DevStatus(NODEID_MIN_REMOTE, RING_ID_ALL);
       SendMyMessage();
       mStatus = SYS_RUNNING;
