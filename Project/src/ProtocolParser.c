@@ -7,6 +7,61 @@
 uint8_t bMsgReady = 0;
 bool bDelaySend = FALSE;
 
+void MsgScanner_ProbeAck();
+void MsgScanner_ConfigAck(uint8_t offset,uint8_t cfglen,bool _isByUniqueid);
+void Process_SetConfig(u8 _len);
+void Process_SetDevConfig(u8 _len);
+
+bool SendCfgBlock(uint8_t offset,uint8_t size,uint8_t isNeedUniqueid);
+typedef struct
+{
+  uint8_t offset;
+  uint8_t size;
+  uint8_t byUniqueid;  // whether getconfig by uniqueid
+}CfgBlock;
+#define OUT_CFG_MESSAGE_LEN           16
+CfgBlock out_cfg_msg_buf[OUT_CFG_MESSAGE_LEN];
+u8 cfg_msg_out_buf_read_ptr = 0;
+u8 cfg_msg_out_buf_write_ptr = 0;
+
+bool AddCfgOutputBuf(uint8_t offset,uint8_t size,uint8_t isNeedUniqueid) {  
+  CfgBlock cfgblock;
+  cfgblock.offset = offset;
+  cfgblock.size = size;
+  cfgblock.byUniqueid = isNeedUniqueid;
+  out_cfg_msg_buf[cfg_msg_out_buf_write_ptr++] = cfgblock;
+  cfg_msg_out_buf_write_ptr %= OUT_CFG_MESSAGE_LEN;
+  return TRUE;
+}
+
+bool ProcessOutputCfgMsg() {
+  // Send output Cfg msg
+  while( cfg_msg_out_buf_read_ptr != cfg_msg_out_buf_write_ptr) {   
+    CfgBlock cfgblock = out_cfg_msg_buf[cfg_msg_out_buf_read_ptr++];
+    SendCfgBlock(cfgblock.offset,cfgblock.size,TRUE);
+    cfg_msg_out_buf_read_ptr %= OUT_CFG_MESSAGE_LEN;
+  }
+  return TRUE;
+}
+
+bool SendCfgBlock(uint8_t offset,uint8_t size,uint8_t isNeedUniqueid) {
+  // Send output Cfg msg  
+    build(NODEID_RF_SCANNER, gConfig.subID, C_INTERNAL, I_GET_NONCE_RESPONSE, 0, 1);
+    // Common payload
+    sndMsg.payload.data[0] = SCANNER_GETDEV_CONFIG;
+    sndMsg.payload.data[1] = offset;
+    uint8_t custom_playload = 2;
+    if(isNeedUniqueid != 0) 
+    {
+      memcpy(sndMsg.payload.data + 2,_uniqueID, UNIQUE_ID_LEN);
+      custom_playload += UNIQUE_ID_LEN;
+    }  
+    memcpy(sndMsg.payload.data + custom_playload, (void *)((uint16_t)(&gConfig) + offset), size);
+    moSetLength(size+custom_playload);
+    moSetPayloadType(P_CUSTOM);
+    bMsgReady = 1;
+    SendMyMessage();
+}
 // Assemble message
 void build(uint8_t _destination, uint8_t _sensor, uint8_t _command, uint8_t _type, bool _enableAck, bool _isAck)
 {
@@ -112,7 +167,40 @@ uint8_t ParseProtocol(){
       gIsChanged = TRUE;
       Msg_NodeConfigAck(_sender, _sensor);
       return 1;
-    }
+    }else if( _type == I_GET_NONCE ) {
+      // RF Scanner Probe
+        if( _sender == NODEID_RF_SCANNER ) {
+          uint8_t _lenPayl = miGetLength();
+          if( rcvMsg.payload.data[0] == SCANNER_PROBE ) {      
+            MsgScanner_ProbeAck();
+          } else if( rcvMsg.payload.data[0] == SCANNER_SETUP_RF ) {
+          }
+          else if( rcvMsg.payload.data[0] == SCANNER_SETCONFIG ) {
+            
+            if(!IS_MINE_SUBID(_sensor)) return 0;          
+            uint8_t cfg_len = _lenPayl - 2;
+            Process_SetConfig(cfg_len);
+          }
+          else if( rcvMsg.payload.data[0] == SCANNER_SETDEV_CONFIG ) {  
+            if(!isIdentityEqual(rcvMsg.payload.data + 2,_uniqueID,UNIQUE_ID_LEN)) return 0;
+            uint8_t cfg_len = _lenPayl - 10;
+            Process_SetDevConfig(cfg_len);
+          }
+          else if( rcvMsg.payload.data[0] == SCANNER_GETDEV_CONFIG ) {  
+            uint8_t offset = rcvMsg.payload.data[1];
+            uint8_t cfgblock_len = rcvMsg.payload.data[10];
+            if(!isIdentityEqual(rcvMsg.payload.data + 2,_uniqueID,UNIQUE_ID_LEN)) return 0;
+            MsgScanner_ConfigAck(offset,cfgblock_len,TRUE); 
+          }
+          else if( rcvMsg.payload.data[0] == SCANNER_GETCONFIG ) { 
+            if(!IS_MINE_SUBID(_sensor)) return 0;  
+            uint8_t offset = rcvMsg.payload.data[1];
+            uint8_t cfgblock_len = rcvMsg.payload.data[2];
+            MsgScanner_ConfigAck(offset,cfgblock_len,FALSE);
+          }
+          return 1;
+        }      
+      }
     break;
     
   case C_PRESENTATION:
@@ -500,3 +588,89 @@ void Msg_SenPM25(uint16_t _value) {
   bMsgReady = 1;  
 }
 #endif
+
+//----------------------------------------------
+// RF Scanner Messages
+//----------------------------------------------
+// Probe ack message
+void MsgScanner_ProbeAck() {
+  uint8_t payl_len = UNIQUE_ID_LEN + 1;
+  build(NODEID_RF_SCANNER, 0x00, C_INTERNAL, I_GET_NONCE_RESPONSE, 0, 1);
+
+  // Common payload
+  sndMsg.payload.data[0] = SCANNER_PROBE;
+  memcpy(sndMsg.payload.data + 1, _uniqueID, UNIQUE_ID_LEN);
+  
+  sndMsg.payload.data[payl_len++] = gConfig.version;
+  sndMsg.payload.data[payl_len++] = gConfig.type;
+  sndMsg.payload.data[payl_len++] = gConfig.nodeID;
+  sndMsg.payload.data[payl_len++] = gConfig.subID;
+  sndMsg.payload.data[payl_len++] = gConfig.rfChannel;
+  sndMsg.payload.data[payl_len++] = gConfig.rfDataRate << 2 + gConfig.rfPowerLevel;
+  memcpy(sndMsg.payload.data + payl_len, gConfig.NetworkID, sizeof(gConfig.NetworkID));
+  payl_len += sizeof(gConfig.NetworkID);
+  
+  moSetLength(payl_len);
+  moSetPayloadType(P_CUSTOM);
+  bMsgReady = 1;
+}
+//typedef struct
+//{
+//    uint8_t subtype;
+//    uint8_t offset;
+//    uint8_t uniqueid[8];
+//    UC ConfigBlock[15];
+//}MyMsgPayload_t
+#define CFGBLOCK_SIZE    15
+#define CFGBLOCK_NO_UNIQUEID_SIZE CFGBLOCK_SIZE+UNIQUE_ID_LEN
+void MsgScanner_ConfigAck(uint8_t offset,uint8_t cfglen,bool _isByUniqueid) {
+  uint8_t cfg_end_offset = cfglen;
+  if(cfglen == 0) cfg_end_offset = sizeof(Config_t)-1;
+  else
+  {
+    cfg_end_offset = offset + cfglen > sizeof(Config_t)-1?sizeof(Config_t)-1:offset + cfglen;
+  }  
+  while( offset < cfg_end_offset )
+  {
+    uint8_t left_len = cfg_end_offset - offset;
+    uint8_t payl_len = left_len < CFGBLOCK_SIZE ? left_len : CFGBLOCK_SIZE;
+    if(_isByUniqueid) AddCfgOutputBuf(offset,payl_len,1);
+    else  
+    {
+      payl_len = left_len < CFGBLOCK_NO_UNIQUEID_SIZE ? left_len : CFGBLOCK_NO_UNIQUEID_SIZE;
+      AddCfgOutputBuf(offset,payl_len,0);
+    }
+    offset+=payl_len;
+    offset %= sizeof(Config_t);
+  }
+}
+
+//////set config by nodeid&subid data struct/////////////////////
+//typedef struct
+//{
+//    uint8_t subtype;
+//    uint8_t offset;  //config offset
+//    UC ConfigBlock[23];
+//}MyMsgPayload_t
+//////set config by nodeid&subid data struct/////////////////////
+void Process_SetConfig(u8 _len) {
+  uint8_t offset = rcvMsg.payload.data[1];
+  memcpy((void *)((uint16_t)(&gConfig) + offset),rcvMsg.payload.data+2,_len);
+  gIsChanged = TRUE;
+}
+//////set config by uniqueid data struct/////////////////////
+//typedef struct
+//{
+//    uint8_t subtype;
+//    uint8_t offset;   //config offset
+//    uint8_t uniqueid[8];
+//    
+//    UC ConfigBlock[15];
+//}MyMsgPayload_t
+//////set config by uniqueid data struct/////////////////////
+void Process_SetDevConfig(u8 _len) {
+    uint8_t offset = rcvMsg.payload.data[1];
+    memcpy((void *)((uint16_t)(&gConfig) + offset),rcvMsg.payload.data+2+UNIQUE_ID_LEN,_len);
+    gIsChanged = TRUE;
+}
+//----------------------------------------------

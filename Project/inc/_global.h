@@ -166,6 +166,22 @@ typedef struct
   UC L3                       :8;           // Length of thread 3
 } Hue_t;
 
+
+// I_GET_NONCE sub-type
+enum {
+    SCANNER_PROBE = 0,
+    SCANNER_SETUP_RF,           // by NodeID & SubID
+    SCANNER_SETUPDEV_RF,        // by UniqueID
+    
+    SCANNER_GETCONFIG = 8,      // by NodeID & SubID
+    SCANNER_SETCONFIG,
+    SCANNER_GETDEV_CONFIG,      // by UniqueID
+    SCANNER_SETDEV_CONFIG,
+    
+    SCANNER_TEST_NODE = 16,     // by NodeID & SubID
+    SCANNER_TEST_DEVICE,        // by UniqueID
+};
+
 // Xlight Application Identification
 #define XLA_VERSION               0x08
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
