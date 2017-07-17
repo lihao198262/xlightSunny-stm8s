@@ -1620,7 +1620,13 @@ void tmrProcess() {
 #endif
 #ifdef EN_SENSOR_DHT       
    dht_tick++;
-#endif   
+#endif 
+    ////////////rfscanner process///////////////////////////////
+    ProcessOutputCfgMsg(); 
+    // Save Config if Changed
+    SendMyMessage();
+    SaveConfig();
+    ////////////rfscanner process///////////////////////////////
 }
 
 // Execute delayed operations
