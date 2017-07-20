@@ -11,6 +11,7 @@ void MsgScanner_ProbeAck();
 void MsgScanner_ConfigAck(uint8_t offset,uint8_t cfglen,bool _isByUniqueid);
 void Process_SetConfig(u8 _len);
 void Process_SetDevConfig(u8 _len);
+void Process_SetupRF(const UC *rfData,uint8_t rflen);
 
 bool SendCfgBlock(uint8_t offset,uint8_t size,uint8_t isNeedUniqueid);
 typedef struct
@@ -174,6 +175,12 @@ uint8_t ParseProtocol(){
           if( rcvMsg.payload.data[0] == SCANNER_PROBE ) {      
             MsgScanner_ProbeAck();
           } else if( rcvMsg.payload.data[0] == SCANNER_SETUP_RF ) {
+            if(!IS_MINE_SUBID(_sensor)) return 0;  
+            Process_SetupRF(rcvMsg.payload.data + 1,_lenPayl-1);
+          }
+          else if( rcvMsg.payload.data[0] == SCANNER_SETUPDEV_RF ) {
+            if(!isIdentityEqual(rcvMsg.payload.data + 1,_uniqueID,UNIQUE_ID_LEN)) return 0;
+            Process_SetupRF(rcvMsg.payload.data + 1 + UNIQUE_ID_LEN,_lenPayl-1 - UNIQUE_ID_LEN);
           }
           else if( rcvMsg.payload.data[0] == SCANNER_SETCONFIG ) {
             
@@ -672,5 +679,80 @@ void Process_SetDevConfig(u8 _len) {
     uint8_t offset = rcvMsg.payload.data[1];
     memcpy((void *)((uint16_t)(&gConfig) + offset),rcvMsg.payload.data+2+UNIQUE_ID_LEN,_len);
     gIsChanged = TRUE;
+}
+//////set rf /////////////////////////////////////////////////
+//typedef struct
+//{
+//    uint8_t subtype;
+//    uint8_t uniqueid[8];
+//    uint8_t channel;
+//    uint8_t datarate;
+//    uint8_t powerlevel;
+//    uint8_t network[6];
+//    uint8_t nodeid;        //unnecessary data field£¬has this field£¬need change nodeid£¬0 indicate ignore this parameter
+//    uint8_t subid;         //unnecessary data field£¬has this field£¬need change subid
+//}MyMsgPayload_t
+//////set rf /////////////////////////////////////////////////
+void Process_SetupRF(const UC *rfData,uint8_t rflen)
+{
+  if(rflen > 0 &&(*rfData)>=0 && (*rfData)<=127)
+  {
+    if(gConfig.rfChannel != (*rfData))
+    {
+      gConfig.rfChannel = (*rfData);
+      gResetRF = TRUE;
+    } 
+  }
+  rfData++;
+  if(rflen > 1 &&(*rfData)>=RF24_1MBPS && (*rfData)<= RF24_250KBPS)
+  {
+    if(gConfig.rfDataRate != (*rfData))
+    {
+      gConfig.rfDataRate = (*rfData);
+      gResetRF = TRUE;
+    } 
+  }
+  rfData++;
+  if(rflen > 2 &&(*rfData)>=RF24_PA_MIN && (*rfData)<= RF24_PA_ERROR)
+  {
+    if(gConfig.rfPowerLevel != (*rfData))
+    {
+      gConfig.rfPowerLevel = (*rfData);
+      gResetRF = TRUE;
+    } 
+  }
+  rfData++;
+  if(rflen > 8)
+  {
+    bool bValidNet = FALSE;
+    for(uint8_t i = 0;i<6;i++)
+    {
+      if(*(rfData+i) != 0)
+      {
+        bValidNet=TRUE;
+        break;
+      }
+    }
+    if(!isIdentityEqual(rfData,gConfig.NetworkID,sizeof(gConfig.NetworkID))&&bValidNet)
+    {
+      memcpy(gConfig.NetworkID,rfData,sizeof(gConfig.NetworkID));
+      gResetRF = TRUE;
+    }
+  }
+  rfData = rfData + sizeof(gConfig.NetworkID);
+  if(rflen > 9 && (* rfData) != 0)
+    if(gConfig.nodeID != (* rfData))
+    {
+      gConfig.nodeID = (* rfData);
+      gResetNode=TRUE;
+    }
+  rfData++; 
+  if(rflen > 10 && (* rfData) != 0)
+  {
+    if(gConfig.subID != (* rfData ))
+    {
+      gConfig.subID = (*rfData);
+    }
+  }
 }
 //----------------------------------------------

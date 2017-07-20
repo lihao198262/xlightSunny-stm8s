@@ -248,6 +248,8 @@ typedef struct
 
 extern Config_t gConfig;
 extern bool gIsChanged;
+extern bool gResetRF;
+extern bool gResetNode;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
 
 bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen);
