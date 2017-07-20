@@ -126,6 +126,8 @@ MyMessage_t sndMsg, rcvMsg;
 uint8_t *psndMsg = (uint8_t *)&sndMsg;
 uint8_t *prcvMsg = (uint8_t *)&rcvMsg;
 bool gIsChanged = FALSE;
+bool gResetRF = FALSE;
+bool gResetNode = FALSE;
 uint8_t _uniqueID[UNIQUE_ID_LEN];
 
 // Moudle variables
@@ -355,6 +357,24 @@ void UpdateNodeAddress(uint8_t _tx) {
   RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
+// reset rf
+void ResetRFModule()
+{
+  if(gResetRF)
+  {
+    RF24L01_init();
+    NRF2401_EnableIRQ();
+    UpdateNodeAddress(NODEID_GATEWAY);
+    gResetRF=FALSE;
+  }
+  if(gResetNode)
+  {
+    mStatus = SYS_RESET;
+    gResetNode=FALSE;
+  }
+}
+
+
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
     if( mutex > 0 ) return TRUE;
@@ -531,6 +551,13 @@ bool SayHelloToDevice(bool infinate) {
   UpdateNodeAddress(NODEID_GATEWAY);
 
   while(mStatus < SYS_RUNNING) {
+    ////////////rfscanner process///////////////////////////////
+    ProcessOutputCfgMsg(); 
+    // Save Config if Changed
+    SendMyMessage();
+    ResetRFModule();
+    SaveConfig();
+    ////////////rfscanner process///////////////////////////////
     if( _count++ == 0 ) {
       
       if( isNodeIdRequired() ) {
@@ -860,6 +887,11 @@ int main( void ) {
         }
       }
 #endif      
+      ////////////rfscanner process///////////////////////////////
+      ProcessOutputCfgMsg(); 
+      // reset rf
+      ResetRFModule();
+      ////////////rfscanner process///////////////////////////////     
       
       // Send message if ready
       SendMyMessage();
@@ -1621,12 +1653,6 @@ void tmrProcess() {
 #ifdef EN_SENSOR_DHT       
    dht_tick++;
 #endif 
-    ////////////rfscanner process///////////////////////////////
-    ProcessOutputCfgMsg(); 
-    // Save Config if Changed
-    SendMyMessage();
-    SaveConfig();
-    ////////////rfscanner process///////////////////////////////
 }
 
 // Execute delayed operations
