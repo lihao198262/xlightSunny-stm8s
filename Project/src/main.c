@@ -66,6 +66,9 @@ Connections:
 #define XLA_PRODUCT_Type          devtypMRing3
 #endif
 
+// Flash address of backup config
+#define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + FLASH_BLOCK_SIZE * 2)
+
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		71
 
@@ -126,6 +129,7 @@ MyMessage_t sndMsg, rcvMsg;
 uint8_t *psndMsg = (uint8_t *)&sndMsg;
 uint8_t *prcvMsg = (uint8_t *)&rcvMsg;
 bool gIsChanged = FALSE;
+bool gNeedSaveBackup = FALSE;
 bool gIsStatusChanged = FALSE;
 bool gResetRF = FALSE;
 bool gResetNode = FALSE;
@@ -203,8 +207,9 @@ void Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
   
   uint8_t WriteBuf[FLASH_BLOCK_SIZE];
+  uint16_t nStartBlock = (Address - FLASH_DATA_START_PHYSICAL_ADDRESS) / FLASH_BLOCK_SIZE;
   uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
-  for( uint16_t block = 0; block < nBlockNum; block++ ) {
+  for( uint16_t block = nStartBlock; block < nStartBlock + nBlockNum; block++ ) {
     memset(WriteBuf, 0x00, FLASH_BLOCK_SIZE);
     for( uint16_t i = 0; i < FLASH_BLOCK_SIZE; i++ ) {
       WriteBuf[i] = Buffer[block * FLASH_BLOCK_SIZE + i];
@@ -241,6 +246,16 @@ bool isNodeIdRequired()
 }
 
 // Save config to Flash
+void SaveBackupConfig()
+{
+  if( gNeedSaveBackup ) {
+    // Overwrite entire config FLASH
+    Flash_WriteBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+    gNeedSaveBackup = FALSE;
+  }
+}
+
+// Save config to Flash
 void SaveConfig()
 {
   if( gIsChanged ) {
@@ -248,6 +263,7 @@ void SaveConfig()
     Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     gIsStatusChanged = FALSE;
     gIsChanged = FALSE;
+    gNeedSaveBackup = TRUE;
     return;
   }
 
@@ -267,61 +283,69 @@ void InitNodeAddress() {
   memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
 }
 
+bool IsConfigInvalid() {
+  return( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
+       || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
+}
+
 // Load config from Flash
 void LoadConfig()
 {
     // Load the most recent settings from FLASH
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     //gConfig.version = XLA_VERSION + 1;
-    if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS ) {
-       //|| strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
-      memset(&gConfig, 0x00, sizeof(gConfig));
-      gConfig.version = XLA_VERSION;
-      gConfig.nodeID = BASESERVICE_ADDRESS;
-      InitNodeAddress();
-      gConfig.type = XLA_PRODUCT_Type;
-      gConfig.ring[0].State = 1;
-      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+    if( IsConfigInvalid() ) {
+      // If config is OK, then try to load config from backup area
+      Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+      if( IsConfigInvalid() ) {
+        // If neither valid, then initialize config with default settings
+        memset(&gConfig, 0x00, sizeof(gConfig));
+        gConfig.version = XLA_VERSION;
+        gConfig.nodeID = BASESERVICE_ADDRESS;
+        InitNodeAddress();
+        gConfig.type = XLA_PRODUCT_Type;
+        gConfig.ring[0].State = 1;
+        gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
 #if defined(XSUNNY)
-      gConfig.ring[0].CCT = CT_MIN_VALUE;
+        gConfig.ring[0].CCT = CT_MIN_VALUE;
 #else
-      gConfig.ring[0].CCT = 0;
-      gConfig.ring[0].R = 128;
-      gConfig.ring[0].G = 64;
-      gConfig.ring[0].B = 100;
+        gConfig.ring[0].CCT = 0;
+        gConfig.ring[0].R = 128;
+        gConfig.ring[0].G = 64;
+        gConfig.ring[0].B = 100;
 #endif      
-      gConfig.ring[1] = gConfig.ring[0];
-      gConfig.ring[2] = gConfig.ring[0];
-      gConfig.rfChannel = RF24_CHANNEL;
-      gConfig.rfPowerLevel = RF24_PA_MAX;
-      gConfig.rfDataRate = RF24_1MBPS;      
-      gConfig.hasSiblingMCU = 0;
-      gConfig.rptTimes = 1;
-      //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
-      //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
-      
-      gConfig.senMap = 0;
+        gConfig.ring[1] = gConfig.ring[0];
+        gConfig.ring[2] = gConfig.ring[0];
+        gConfig.rfChannel = RF24_CHANNEL;
+        gConfig.rfPowerLevel = RF24_PA_MAX;
+        gConfig.rfDataRate = RF24_1MBPS;      
+        gConfig.hasSiblingMCU = 0;
+        gConfig.rptTimes = 1;
+        //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
+        //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
+        
+        gConfig.senMap = 0;
 #ifdef EN_SENSOR_ALS
-      gConfig.senMap |= sensorALS;
+        gConfig.senMap |= sensorALS;
 #endif
 #ifdef EN_SENSOR_PIR
-      gConfig.senMap |= sensorPIR;
+        gConfig.senMap |= sensorPIR;
 #endif
 #ifdef EN_SENSOR_DHT
-      gConfig.senMap |= sensorDHT;
+        gConfig.senMap |= sensorDHT;
 #endif
 #ifdef EN_SENSOR_PM25
-      gConfig.senMap |= sensorDUST;
+        gConfig.senMap |= sensorDUST;
 #endif
-      
-      gConfig.funcMap = 0;
-      gConfig.alsLevel[0] = 70;
-      gConfig.alsLevel[1] = 80;
-      gConfig.pirLevel[0] = 0;
-      gConfig.pirLevel[1] = 0;
-
-      gIsChanged = TRUE;
+        
+        gConfig.funcMap = 0;
+        gConfig.alsLevel[0] = 70;
+        gConfig.alsLevel[1] = 80;
+        gConfig.pirLevel[0] = 0;
+        gConfig.pirLevel[1] = 0;
+        
+        gIsChanged = TRUE;
+      }
     }
     
     // Engineering Code
@@ -1662,7 +1686,10 @@ void tmrProcess() {
 #endif
 #ifdef EN_SENSOR_DHT       
    dht_tick++;
-#endif 
+#endif
+   
+  // Save config into backup area
+   SaveBackupConfig();
 }
 
 // Execute delayed operations
