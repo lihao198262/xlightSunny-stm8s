@@ -284,8 +284,8 @@ void InitNodeAddress() {
 }
 
 bool IsConfigInvalid() {
-  return( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT || DEVST_Bright > 100 
+       || gConfig.rfPowerLevel > RF24_PA_MAX || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
 }
 
 // Load config from Flash
