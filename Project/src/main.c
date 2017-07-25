@@ -212,7 +212,7 @@ void Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   for( uint16_t block = nStartBlock; block < nStartBlock + nBlockNum; block++ ) {
     memset(WriteBuf, 0x00, FLASH_BLOCK_SIZE);
     for( uint16_t i = 0; i < FLASH_BLOCK_SIZE; i++ ) {
-      WriteBuf[i] = Buffer[block * FLASH_BLOCK_SIZE + i];
+      WriteBuf[i] = Buffer[(block - nStartBlock) * FLASH_BLOCK_SIZE + i];
     }
     FLASH_ProgramBlock(block, FLASH_MEMTYPE_DATA, FLASH_PROGRAMMODE_STANDARD, WriteBuf);
     FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
@@ -342,10 +342,13 @@ void LoadConfig()
         gConfig.alsLevel[0] = 70;
         gConfig.alsLevel[1] = 80;
         gConfig.pirLevel[0] = 0;
-        gConfig.pirLevel[1] = 0;
-        
-        gIsChanged = TRUE;
+        gConfig.pirLevel[1] = 0;        
       }
+      gIsChanged = TRUE;
+    } else {
+      uint8_t bytVersion;
+      Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
+      if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
     }
     
     // Engineering Code
