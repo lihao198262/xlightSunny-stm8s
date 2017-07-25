@@ -126,6 +126,7 @@ MyMessage_t sndMsg, rcvMsg;
 uint8_t *psndMsg = (uint8_t *)&sndMsg;
 uint8_t *prcvMsg = (uint8_t *)&rcvMsg;
 bool gIsChanged = FALSE;
+bool gIsStatusChanged = FALSE;
 bool gResetRF = FALSE;
 bool gResetNode = FALSE;
 uint8_t _uniqueID[UNIQUE_ID_LEN];
@@ -242,12 +243,19 @@ bool isNodeIdRequired()
 // Save config to Flash
 void SaveConfig()
 {
-#ifndef ENABLE_SDTM  
   if( gIsChanged ) {
+    // Overwrite entire config FLASH
     Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+    gIsStatusChanged = FALSE;
     gIsChanged = FALSE;
+    return;
   }
-#endif  
+
+  if( gIsStatusChanged ) {
+    // Overwrite only Static & status parameters (the first part of config FLASH)
+    Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig));
+    gIsStatusChanged = FALSE;
+  }  
 }
 
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
@@ -266,7 +274,7 @@ void LoadConfig()
     Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     //gConfig.version = XLA_VERSION + 1;
     if( gConfig.version > XLA_VERSION || DEVST_Bright > 100 || gConfig.rfPowerLevel > RF24_PA_MAX 
-       || gConfig.type != XLA_PRODUCT_Type || gConfig.rfChannel > 127 || gConfig.rfDataRate > 2 ) {
+       || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS ) {
        //|| strcmp(gConfig.Organization, XLA_ORGANIZATION) != 0  ) {
       memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
@@ -313,8 +321,7 @@ void LoadConfig()
       gConfig.pirLevel[0] = 0;
       gConfig.pirLevel[1] = 0;
 
-      //gIsChanged = TRUE;
-      //SaveConfig();
+      gIsChanged = TRUE;
     }
     
     // Engineering Code
@@ -323,6 +330,7 @@ void LoadConfig()
     //gConfig.nodeID = 15;
     //gConfig.subID = 1;          // Classroom light: 1
     //gConfig.subID = 2;          // Blackboard light: 2
+    //gConfig.rfDataRate = RF24_250KBPS;
     
     if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
 #ifdef EN_SENSOR_ALS
@@ -484,7 +492,7 @@ bool SendMyMessage() {
           gConfig.cntRFReset++;
           if( gConfig.cntRFReset >= MAX_RF_RESET_TIME ) {
             // Save Data
-            gIsChanged = TRUE;
+            gIsStatusChanged = TRUE;
             SaveConfig();
             // Cold Reset
             WWDG->CR = 0x80;
@@ -538,7 +546,7 @@ void GotNodeID() {
 void GotPresented() {
   mStatus = SYS_RUNNING;
   gConfig.swTimes = 0;
-  gIsChanged = TRUE;
+  gIsStatusChanged = TRUE;
   SaveConfig();
 }
 
@@ -610,7 +618,7 @@ bool SayHelloToDevice(bool infinate) {
     // Reset switch count
     if( _count >= 10 && gConfig.swTimes > 0 ) {
       gConfig.swTimes = 0;
-      gIsChanged = TRUE;
+      gIsStatusChanged = TRUE;
       SaveConfig();
     }
     
@@ -673,8 +681,10 @@ int main( void ) {
     gConfig.enSDTM = 0;
     gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
+    gIsChanged = TRUE;
+  } else {
+    gIsStatusChanged = TRUE;
   }
-  gIsChanged = TRUE;
   SaveConfig();
   
   // Init Watchdog
@@ -802,7 +812,7 @@ int main( void ) {
                   }
                 }
                 ChangeDeviceBR(lv_Brightness, RING_ID_ALL);
-                gIsChanged = TRUE;
+                gIsStatusChanged = TRUE;
               }
               Msg_DevBrightness(NODEID_GATEWAY);
               feed_wwdg();
@@ -842,7 +852,7 @@ int main( void ) {
                   lv_preBRChanged = TRUE;
                 } else if( lv_preBRChanged ) {
                   lv_preBRChanged = FALSE;
-                  gIsChanged = TRUE;
+                  gIsStatusChanged = TRUE;
                   SendMyMessage();
                   Msg_DevBrightness(NODEID_GATEWAY);
                   feed_wwdg();
@@ -1102,7 +1112,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 
 #endif    
 
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1143,7 +1153,7 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 
 #endif    
 
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
 
@@ -1184,7 +1194,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), RINGST_WarmCold(r_index), _ring);
 #endif
 
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1216,7 +1226,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
     ChangeDeviceStatus(DEVST_OnOff, DEVST_Bright, DEVST_WarmCold, _ring);
 #endif
 
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1259,7 +1269,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
     ChangeDeviceStatus(RINGST_OnOff(r_index), RINGST_Bright(r_index), RINGST_WarmCold(r_index), _ring);
 #endif
     
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1292,7 +1302,7 @@ bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
 #endif    
 #endif
     
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1337,7 +1347,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     ChangeDeviceWRGB(newValue, _ring);
 #endif
     
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1370,7 +1380,7 @@ bool SetDeviceWRGB(uint8_t _w, uint8_t _r, uint8_t _g, uint8_t _b, uint8_t _ring
     ChangeDeviceWRGB(newValue, _ring);
 #endif
     
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     return TRUE;
   }
   
@@ -1585,7 +1595,7 @@ bool SetDeviceFilter(uint8_t _filter) {
   
   if( _filter != gConfig.filter ) {
     gConfig.filter = _filter;
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
     if( _filter == FILTER_SP_EF_NONE ) {
       // Stop Timers
       BF_SET(delay_func, 0, DELAY_TIM_ONOFF, 4);

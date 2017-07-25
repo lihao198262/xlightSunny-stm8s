@@ -217,7 +217,7 @@ uint8_t ParseProtocol(){
         gConfig.token = rcvMsg.payload.uiValue;
         gConfig.present = (gConfig.token >  0);
         GotPresented();
-        gIsChanged = TRUE;
+        gIsStatusChanged = TRUE;
         // Inform controller with latest status
         Msg_DevStatus(NODEID_GATEWAY, RING_ID_ALL);
         return 1;
@@ -330,14 +330,14 @@ uint8_t ParseProtocol(){
           uint16_t _CCTValue = rcvMsg.payload.data[4] * 256 + rcvMsg.payload.data[3];
           if( _OnOff != RINGST_OnOff(r_index) || _Brightness != RINGST_Bright(r_index) || _CCTValue != RINGST_WarmCold(r_index) ) {
             SetDeviceStatus(_OnOff, _Brightness, _CCTValue, _RingID);
-            gIsChanged = TRUE;
+            gIsStatusChanged = TRUE;
           }
         } else if( IS_RAINBOW(gConfig.type) || IS_MIRAGE(gConfig.type) ) {
           // Set RGBW
           if( _OnOff != RINGST_OnOff(r_index) || _Brightness != RINGST_Bright(r_index) || rcvMsg.payload.data[3] != RINGST_W(r_index) 
              || rcvMsg.payload.data[4] != RINGST_R(r_index) || rcvMsg.payload.data[5] != RINGST_G(r_index) || rcvMsg.payload.data[6] != RINGST_B(r_index) ) {
                SetDeviceHue(_OnOff, _Brightness, rcvMsg.payload.data[3], rcvMsg.payload.data[4], rcvMsg.payload.data[5], rcvMsg.payload.data[6], _RingID);
-               gIsChanged = TRUE;
+               gIsStatusChanged = TRUE;
              }
         }
         if( _needAck ) {
