@@ -187,15 +187,16 @@ enum {
 #define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
 
 #if XLA_VERSION > 0x07
+#define XLA_MIN_VER_REQUIREMENT   0x08
 typedef struct
 {
   // Static & status parameters
   UC version                  :8;           // Data version, other than 0xFF
   UC present                  :1;           // 0 - not present; 1 - present
   UC filter                   :4;
-  UC swTimes                  :3;           // On/Off times
+  UC reserved0                :3;
+  UC swTimes                  :4;           // On/Off times
   UC cntRFReset               :4;           // RF reset count
-  UC reserved0                :4;
   Hue_t ring[MAX_RING_NUM];
 
   // Configurable parameters
@@ -217,6 +218,7 @@ typedef struct
   UC pirLevel[2];
 } Config_t;
 #else
+#define XLA_MIN_VER_REQUIREMENT   0x03
 typedef struct
 {
   UC version                  :8;           // Data version, other than 0xFF
@@ -248,6 +250,8 @@ typedef struct
 
 extern Config_t gConfig;
 extern bool gIsChanged;
+extern bool gNeedSaveBackup;
+extern bool gIsStatusChanged;
 extern bool gResetRF;
 extern bool gResetNode;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
