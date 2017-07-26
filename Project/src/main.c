@@ -66,8 +66,9 @@ Connections:
 #define XLA_PRODUCT_Type          devtypMRing3
 #endif
 
-// Flash address of backup config
-#define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + FLASH_BLOCK_SIZE * 2)
+// Starting Flash block number of backup config
+#define BACKUP_CONFIG_BLOCK_NUM         2
+#define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + BACKUP_CONFIG_BLOCK_NUM * FLASH_BLOCK_SIZE)
 
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		71
@@ -206,8 +207,21 @@ void Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   FLASH_Unlock(FLASH_MEMTYPE_DATA);
   while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
   
+  // Write byte by byte
+  for( uint16_t i = 0; i < Length; i++ ) {
+    FLASH_ProgramByte(Address+i, Buffer[i]);
+    FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
+  }
+  FLASH_Lock(FLASH_MEMTYPE_DATA);
+}
+ 
+void Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
+  // Init Flash Read & Write
+  FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
+  FLASH_Unlock(FLASH_MEMTYPE_DATA);
+  while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  
   uint8_t WriteBuf[FLASH_BLOCK_SIZE];
-  uint16_t nStartBlock = (Address - FLASH_DATA_START_PHYSICAL_ADDRESS) / FLASH_BLOCK_SIZE;
   uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
   for( uint16_t block = nStartBlock; block < nStartBlock + nBlockNum; block++ ) {
     memset(WriteBuf, 0x00, FLASH_BLOCK_SIZE);
@@ -250,9 +264,20 @@ void SaveBackupConfig()
 {
   if( gNeedSaveBackup ) {
     // Overwrite entire config FLASH
-    Flash_WriteBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+    Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig));
     gNeedSaveBackup = FALSE;
   }
+}
+
+// Save status to Flash
+void SaveStatusData()
+{
+    // Skip the first byte (version)
+    uint8_t pData[50] = {0};
+    uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
+    memcpy(pData, (uint8_t *)&gConfig, nLen);
+    Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1);
+    gIsStatusChanged = FALSE;
 }
 
 // Save config to Flash
@@ -260,7 +285,7 @@ void SaveConfig()
 {
   if( gIsChanged ) {
     // Overwrite entire config FLASH
-    Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+    Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig));
     gIsStatusChanged = FALSE;
     gIsChanged = FALSE;
     gNeedSaveBackup = TRUE;
@@ -269,8 +294,7 @@ void SaveConfig()
 
   if( gIsStatusChanged ) {
     // Overwrite only Static & status parameters (the first part of config FLASH)
-    Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig));
-    gIsStatusChanged = FALSE;
+    SaveStatusData();
   }  
 }
 
@@ -284,7 +308,8 @@ void InitNodeAddress() {
 }
 
 bool IsConfigInvalid() {
-  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT || DEVST_Bright > 100 
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT 
+       || DEVST_Bright > 100 || gConfig.nodeID == 0
        || gConfig.rfPowerLevel > RF24_PA_MAX || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
 }
 
@@ -344,6 +369,7 @@ void LoadConfig()
         gConfig.pirLevel[0] = 0;
         gConfig.pirLevel[1] = 0;        
       }
+      gConfig.swTimes = 0;
       gIsChanged = TRUE;
     } else {
       uint8_t bytVersion;

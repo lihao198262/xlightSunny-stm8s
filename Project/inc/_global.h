@@ -194,9 +194,9 @@ typedef struct
   UC version                  :8;           // Data version, other than 0xFF
   UC present                  :1;           // 0 - not present; 1 - present
   UC filter                   :4;
-  UC swTimes                  :3;           // On/Off times
+  UC reserved0                :3;
+  UC swTimes                  :4;           // On/Off times
   UC cntRFReset               :4;           // RF reset count
-  UC reserved0                :4;
   Hue_t ring[MAX_RING_NUM];
 
   // Configurable parameters
