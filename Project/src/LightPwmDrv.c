@@ -18,12 +18,12 @@
 /// Option 3: percentage + quadratic
 /// Option 4: percentage + cubic function
 /// Option 10: percentage + table
-u8 WATT_REGULATION_OPTION = 10;
+u8 WATT_REGULATION_OPTION = 0;
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
-#define WATT_COLD_PERCENTAGE            ((uint16_t)70)                  // 50 to 100
-#define WATT_WARM_PERCENTAGE            ((uint16_t)62)                  // 50 to 100
+#define WATT_COLD_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
+#define WATT_WARM_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 
 #define WATT_W_PERCENTAGE               ((uint16_t)80)                  // 50 to 100
 #define WATT_R_PERCENTAGE               ((uint16_t)75)                  // 50 to 100
@@ -43,8 +43,8 @@ u8 WATT_REGULATION_OPTION = 10;
 #define WARM_LIGHT_PWM_PIN_ID           GPIO_PIN_3
 
 #define TIM2_PWM_PERIOD         199
-//#define TIM2_PWM_PULSE          200   // 10K
-#define TIM2_PWM_PULSE          2000    // 1K
+#define TIM2_PWM_PULSE          200   // 10K
+//#define TIM2_PWM_PULSE          2000    // 1K
 
 #endif
 
@@ -66,8 +66,8 @@ u8 WATT_REGULATION_OPTION = 10;
 #define B_LIGHT_PWM_PIN_ID           GPIO_PIN_0
 
 #define TIM2_PWM_PERIOD         254
-//#define TIM2_PWM_PULSE          200     // 10K
-#define TIM2_PWM_PULSE          2000    // 1K
+#define TIM2_PWM_PULSE          200     // 10K
+//#define TIM2_PWM_PULSE          2000    // 1K
 #endif
 
 /**
@@ -188,6 +188,7 @@ typedef struct {
   uint8_t value;
 } compensation_t;
 
+/*
 #define CCT_TABLE_ROWS          18
 const compensation_t cw_Table[] = {
   {0,         0},
@@ -228,6 +229,43 @@ const compensation_t ww_Table[] = {
   {85,        9},
   {90,        5},
   {95,        2},
+  {100,       0}
+};
+*/
+#define CCT_TABLE_ROWS          15
+const compensation_t cw_Table[] = {
+  {0,         0},
+  {5,         2},
+  {8,         3},
+  {10,        4},
+  {20,        5},
+  {30,        6},
+  {40,        8},
+  {50,        10},
+  {60,        8},
+  {70,        6},
+  {80,        5},
+  {90,        4},
+  {93,        3},
+  {96,        2},
+  {100,       0}
+};
+
+const compensation_t ww_Table[] = {
+  {0,         0},
+  {5,         2},
+  {8,         3},
+  {10,        4},
+  {20,        5},
+  {30,        6},
+  {40,        8},
+  {50,        10},
+  {60,        9},
+  {70,        8},
+  {80,        7},
+  {90,        6},
+  {93,        4},
+  {96,        2},
   {100,       0}
 };
 

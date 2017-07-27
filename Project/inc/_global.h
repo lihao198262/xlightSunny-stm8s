@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-#define ENABLE_SDTM
+//#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor
@@ -70,9 +70,12 @@
 #define NODEID_MIN_REMOTE       64
 #define NODEID_MAX_REMOTE       127
 #define NODEID_PROJECTOR        128
+#define NODEID_KEYSIMULATOR     129
+#define NODEID_SUPERSENSOR      130
 #define NODEID_SMARTPHONE       139
 #define NODEID_MIN_GROUP        192
 #define NODEID_MAX_GROUP        223
+#define NODEID_RF_SCANNER       250
 #define NODEID_DUMMY            255
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
@@ -119,15 +122,33 @@
 typedef enum
 {
   devtypUnknown = 0,
-  devtypCRing3,     // Color ring - Rainbow
+  // Color ring - Rainbow
+  devtypCRing3,
   devtypCRing2,
-  devtypCRing1,
-  devtypWRing3,     // White ring - Sunny
+  devtypCBar,
+  devtypCFrame,
+  devtypCWave,
+  devtypCRing1 = 31,
+
+  // White ring - Sunny
+  devtypWRing3 = 32,
   devtypWRing2,
-  devtypWRing1,
-  devtypMRing3 = 8, // Color & Motion ring - Mirage
+  devtypWBar,
+  devtypWFrame,
+  devtypWWave,
+  devtypWSquare60,      // 60 * 60
+  devtypWPanel120_30,   // 120 * 30
+  devtypWBlackboard,    // Blackboard lamp
+  devtypWRing1 = 95,
+
+  // Color & Motion ring - Mirage
+  devtypMRing3 = 96,
   devtypMRing2,
-  devtypMRing1,
+  devtypMBar,
+  devtypMFrame,
+  devtypMWave,
+  devtypMRing1 = 127,
+
   devtypDummy = 255
 } devicetype_t;
 
@@ -145,6 +166,59 @@ typedef struct
   UC L3                       :8;           // Length of thread 3
 } Hue_t;
 
+
+// I_GET_NONCE sub-type
+enum {
+    SCANNER_PROBE = 0,
+    SCANNER_SETUP_RF,           // by NodeID & SubID
+    SCANNER_SETUPDEV_RF,        // by UniqueID
+    
+    SCANNER_GETCONFIG = 8,      // by NodeID & SubID
+    SCANNER_SETCONFIG,
+    SCANNER_GETDEV_CONFIG,      // by UniqueID
+    SCANNER_SETDEV_CONFIG,
+    
+    SCANNER_TEST_NODE = 16,     // by NodeID & SubID
+    SCANNER_TEST_DEVICE,        // by UniqueID
+};
+
+// Xlight Application Identification
+#define XLA_VERSION               0x08
+#define XLA_ORGANIZATION          "xlight.ca"               // Default value. Read from EEPROM
+
+#if XLA_VERSION > 0x07
+#define XLA_MIN_VER_REQUIREMENT   0x08
+typedef struct
+{
+  // Static & status parameters
+  UC version                  :8;           // Data version, other than 0xFF
+  UC present                  :1;           // 0 - not present; 1 - present
+  UC filter                   :4;
+  UC reserved0                :3;
+  UC swTimes                  :4;           // On/Off times
+  UC cntRFReset               :4;           // RF reset count
+  Hue_t ring[MAX_RING_NUM];
+
+  // Configurable parameters
+  UC nodeID;                                // Node ID for this device
+  UC subID;                                 // SubID
+  UC NetworkID[6];
+  UC rfChannel;                             // RF Channel: [0..127]
+  UC rfPowerLevel             :2;           // RF Power Level 0..3
+  UC rfDataRate               :2;           // RF Data Rate [0..2], 0 for 1Mbps, or 1 for 2Mbps, 2 for 250kbs
+  UC rptTimes                 :2;           // Sending message max repeat times [0..3]
+  UC enSDTM                   :1;           // Simple Direct Test Mode Flag
+  UC hasSiblingMCU            :1;           // Whether sibling MCU presents
+  UC type;                                  // Type of lamp
+  US token;
+  UC reserved1                :8;
+  US senMap                   :16;          // Sensor Map
+  US funcMap                  :16;          // Function Map
+  UC alsLevel[2];
+  UC pirLevel[2];
+} Config_t;
+#else
+#define XLA_MIN_VER_REQUIREMENT   0x03
 typedef struct
 {
   UC version                  :8;           // Data version, other than 0xFF
@@ -152,7 +226,7 @@ typedef struct
   UC NetworkID[6];
   UC present                  :1;           // 0 - not present; 1 - present
   UC enSDTM                   :1;           // Simple Direct Test Mode Flag
-  UC reserved                 :2;
+  UC rfDataRate               :2;           // RF Data Rate [0..2], 0 for 1Mbps, or 1 for 2Mbps, 2 for 250kbs
   UC filter                   :4;
   UC type;                                  // Type of lamp
   UC subID;                                 // SubID
@@ -170,10 +244,16 @@ typedef struct
   UC pirLevel[2];
   UC cntRFReset               :4;           // RF reset count
   UC reserved1                :4;
+  UC rfChannel;                             // RF Channel: [0..127]
 } Config_t;
+#endif
 
 extern Config_t gConfig;
 extern bool gIsChanged;
+extern bool gNeedSaveBackup;
+extern bool gIsStatusChanged;
+extern bool gResetRF;
+extern bool gResetNode;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
 
 bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen);
