@@ -316,87 +316,92 @@ bool IsConfigInvalid() {
 // Load config from Flash
 void LoadConfig()
 {
-    // Load the most recent settings from FLASH
-    Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-    //gConfig.version = XLA_VERSION + 1;
+  // Load the most recent settings from FLASH
+  Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+  //gConfig.version = XLA_VERSION + 1;
+  if( IsConfigInvalid() ) {
+    // If config is OK, then try to load config from backup area
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     if( IsConfigInvalid() ) {
-      // If config is OK, then try to load config from backup area
-      Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-      if( IsConfigInvalid() ) {
-        // If neither valid, then initialize config with default settings
-        memset(&gConfig, 0x00, sizeof(gConfig));
-        gConfig.version = XLA_VERSION;
-        gConfig.nodeID = BASESERVICE_ADDRESS;
-        InitNodeAddress();
-        gConfig.type = XLA_PRODUCT_Type;
-        gConfig.ring[0].State = 1;
-        gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+      // If neither valid, then initialize config with default settings
+      memset(&gConfig, 0x00, sizeof(gConfig));
+      gConfig.version = XLA_VERSION;
+      gConfig.nodeID = BASESERVICE_ADDRESS;
+      InitNodeAddress();
+      gConfig.type = XLA_PRODUCT_Type;
+      gConfig.ring[0].State = 1;
+      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
 #if defined(XSUNNY)
-        gConfig.ring[0].CCT = CT_MIN_VALUE;
+      gConfig.ring[0].CCT = CT_MIN_VALUE;
 #else
-        gConfig.ring[0].CCT = 0;
-        gConfig.ring[0].R = 128;
-        gConfig.ring[0].G = 64;
-        gConfig.ring[0].B = 100;
+      gConfig.ring[0].CCT = 0;
+      gConfig.ring[0].R = 128;
+      gConfig.ring[0].G = 64;
+      gConfig.ring[0].B = 100;
 #endif      
-        gConfig.ring[1] = gConfig.ring[0];
-        gConfig.ring[2] = gConfig.ring[0];
-        gConfig.rfChannel = RF24_CHANNEL;
-        gConfig.rfPowerLevel = RF24_PA_MAX;
-        gConfig.rfDataRate = RF24_1MBPS;      
-        gConfig.hasSiblingMCU = 0;
-        gConfig.rptTimes = 1;
-        //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
-        //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
-        
-        gConfig.senMap = 0;
-#ifdef EN_SENSOR_ALS
-        gConfig.senMap |= sensorALS;
-#endif
-#ifdef EN_SENSOR_PIR
-        gConfig.senMap |= sensorPIR;
-#endif
-#ifdef EN_SENSOR_DHT
-        gConfig.senMap |= sensorDHT;
-#endif
-#ifdef EN_SENSOR_PM25
-        gConfig.senMap |= sensorDUST;
-#endif
-        
-        gConfig.funcMap = 0;
-        gConfig.alsLevel[0] = 70;
-        gConfig.alsLevel[1] = 80;
-        gConfig.pirLevel[0] = 0;
-        gConfig.pirLevel[1] = 0;        
-      }
-      gConfig.swTimes = 0;
-      gIsChanged = TRUE;
-    } else {
-      uint8_t bytVersion;
-      Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
-      if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
-    }
-    
-    // Engineering Code
-    //gConfig.nodeID = BASESERVICE_ADDRESS;
-    //gConfig.swTimes = 0;
-    if(gConfig.type == devtypWBlackboard)
-    {
-      gConfig.nodeID = 1;
-      gConfig.subID = 1;    
-    }
-    // Classroom light: 1
-    //gConfig.subID = 2;          // Blackboard light: 2
-    //gConfig.rfDataRate = RF24_250KBPS;
-    if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
+      gConfig.ring[1] = gConfig.ring[0];
+      gConfig.ring[2] = gConfig.ring[0];
+      gConfig.rfChannel = RF24_CHANNEL;
+      gConfig.rfPowerLevel = RF24_PA_MAX;
+      gConfig.rfDataRate = RF24_1MBPS;      
+      gConfig.hasSiblingMCU = 0;
+      gConfig.rptTimes = 1;
+      gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+      //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
+      //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
+      
+      gConfig.senMap = 0;
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
 #endif
 #ifdef EN_SENSOR_PIR
       gConfig.senMap |= sensorPIR;
-#endif    
+#endif
+#ifdef EN_SENSOR_DHT
+      gConfig.senMap |= sensorDHT;
+#endif
 #ifdef EN_SENSOR_PM25
       gConfig.senMap |= sensorDUST;
+#endif
+      
+      gConfig.funcMap = 0;
+      gConfig.alsLevel[0] = 70;
+      gConfig.alsLevel[1] = 80;
+      gConfig.pirLevel[0] = 0;
+      gConfig.pirLevel[1] = 0;        
+    }
+    gConfig.swTimes = 0;
+    gIsChanged = TRUE;
+  } else {
+    uint8_t bytVersion;
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
+    if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
+  }
+  
+  // Engineering Code
+  //gConfig.nodeID = BASESERVICE_ADDRESS;
+  //gConfig.swTimes = 0;
+  if(gConfig.type == devtypWBlackboard)
+  {
+    gConfig.nodeID = 1;
+    gConfig.subID = 1;
+    gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+  } else if(gConfig.type == devtypWSquare60) {
+    gConfig.wattOption = WATT_RM_TABLE_PERCENTAGE;
+  }
+  
+  // Classroom light: 1
+  //gConfig.subID = 2;          // Blackboard light: 2
+  //gConfig.rfDataRate = RF24_250KBPS;
+  if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
+#ifdef EN_SENSOR_ALS
+  gConfig.senMap |= sensorALS;
+#endif
+#ifdef EN_SENSOR_PIR
+  gConfig.senMap |= sensorPIR;
+#endif    
+#ifdef EN_SENSOR_PM25
+  gConfig.senMap |= sensorDUST;
 #endif
 }
 
@@ -741,13 +746,6 @@ int main( void ) {
   } else {
     gIsStatusChanged = TRUE;
   }
-  // Engineering Code
-  if(gConfig.type == devtypWBlackboard)
-  {
-    gConfig.nodeID = 1;
-    gConfig.subID = 1;    
-  }
-  
   SaveConfig();
   
   // Init Watchdog
