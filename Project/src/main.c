@@ -53,7 +53,7 @@ Connections:
 /// Sunny
 #if defined(XSUNNY)
 #define XLA_PRODUCT_NAME          "XSunny"
-#define XLA_PRODUCT_Type          devtypWRing3
+#define XLA_PRODUCT_Type          devtypWSquare60
 #endif
 /// Rainbow
 #if defined(XRAINBOW)
@@ -380,11 +380,14 @@ void LoadConfig()
     // Engineering Code
     //gConfig.nodeID = BASESERVICE_ADDRESS;
     //gConfig.swTimes = 0;
-    //gConfig.nodeID = 15;
-    //gConfig.subID = 1;          // Classroom light: 1
+    if(gConfig.type == devtypWBlackboard)
+    {
+      gConfig.nodeID = 1;
+      gConfig.subID = 1;    
+    }
+    // Classroom light: 1
     //gConfig.subID = 2;          // Blackboard light: 2
     //gConfig.rfDataRate = RF24_250KBPS;
-    
     if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
@@ -738,6 +741,13 @@ int main( void ) {
   } else {
     gIsStatusChanged = TRUE;
   }
+  // Engineering Code
+  if(gConfig.type == devtypWBlackboard)
+  {
+    gConfig.nodeID = 1;
+    gConfig.subID = 1;    
+  }
+  
   SaveConfig();
   
   // Init Watchdog

@@ -613,7 +613,7 @@ void MsgScanner_ProbeAck() {
   sndMsg.payload.data[payl_len++] = gConfig.nodeID;
   sndMsg.payload.data[payl_len++] = gConfig.subID;
   sndMsg.payload.data[payl_len++] = gConfig.rfChannel;
-  sndMsg.payload.data[payl_len++] = gConfig.rfDataRate << 2 + gConfig.rfPowerLevel;
+  sndMsg.payload.data[payl_len++] = (gConfig.rfDataRate << 2) + gConfig.rfPowerLevel;
   memcpy(sndMsg.payload.data + payl_len, gConfig.NetworkID, sizeof(gConfig.NetworkID));
   payl_len += sizeof(gConfig.NetworkID);
   
@@ -680,6 +680,10 @@ void Process_SetDevConfig(u8 _len) {
     memcpy((void *)((uint16_t)(&gConfig) + offset),rcvMsg.payload.data+2+UNIQUE_ID_LEN,_len);
     gIsChanged = TRUE;
 }
+bool IsNodeidValid(uint8_t nodeid)
+{
+  return !(IS_NOT_DEVICE_NODEID(nodeid) && !IS_GROUP_NODEID(nodeid));
+}
 //////set rf /////////////////////////////////////////////////
 //typedef struct
 //{
@@ -695,6 +699,7 @@ void Process_SetDevConfig(u8 _len) {
 //////set rf /////////////////////////////////////////////////
 void Process_SetupRF(const UC *rfData,uint8_t rflen)
 {
+  bool bNeedChangeCfg = FALSE;
   if(rflen > 0 &&(*rfData)>=0 && (*rfData)<=127)
   {
     if(gConfig.rfChannel != (*rfData))
@@ -722,9 +727,10 @@ void Process_SetupRF(const UC *rfData,uint8_t rflen)
     } 
   }
   rfData++;
+  bool bValidNet = FALSE;
+  bool newNetwork[6] = {0};
   if(rflen > 8)
-  {
-    bool bValidNet = FALSE;
+  {  
     for(uint8_t i = 0;i<6;i++)
     {
       if(*(rfData+i) != 0)
@@ -733,26 +739,50 @@ void Process_SetupRF(const UC *rfData,uint8_t rflen)
         break;
       }
     }
-    if(!isIdentityEqual(rfData,gConfig.NetworkID,sizeof(gConfig.NetworkID))&&bValidNet)
+    if(isIdentityEqual(rfData,gConfig.NetworkID,sizeof(gConfig.NetworkID)))
     {
-      memcpy(gConfig.NetworkID,rfData,sizeof(gConfig.NetworkID));
-      gResetRF = TRUE;
+      bValidNet=FALSE;
+    }
+    else
+    {
+      memcpy(newNetwork,rfData,sizeof(newNetwork));
     }
   }
   rfData = rfData + sizeof(gConfig.NetworkID);
+  bool bNeedResetNode = FALSE;
   if(rflen > 9 && (* rfData) != 0)
+  {
     if(gConfig.nodeID != (* rfData))
     {
-      gConfig.nodeID = (* rfData);
-      gResetNode=TRUE;
+      if(IsNodeidValid(*rfData))
+      {
+        gConfig.nodeID = (* rfData);
+        bNeedResetNode = TRUE;
+      }    
     }
+  }
   rfData++; 
-  if(rflen > 10 && (* rfData) != 0)
+  if(rflen > 10)
   {
     if(gConfig.subID != (* rfData ))
     {
       gConfig.subID = (*rfData);
+      bNeedChangeCfg = TRUE;
     }
+  }
+  if(bValidNet)
+  {// nodeid is valid,allow change networkid
+    if(IsNodeidValid(gConfig.nodeID))
+    {
+      memcpy(gConfig.NetworkID,newNetwork,sizeof(gConfig.NetworkID));
+      bNeedResetNode = TRUE;
+    }
+  }
+  if(bNeedResetNode)
+    gResetNode = TRUE;
+  if(gResetNode || gResetRF || bNeedChangeCfg)
+  {
+    gIsChanged = TRUE;
   }
 }
 //----------------------------------------------
