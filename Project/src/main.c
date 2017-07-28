@@ -302,7 +302,7 @@ void SaveConfig()
     Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig));
     gIsStatusChanged = FALSE;
     gIsChanged = FALSE;
-    if( gConfig.nodeID != BASESERVICE_ADDRESS ) gNeedSaveBackup = TRUE;
+    if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
     return;
   }
 
