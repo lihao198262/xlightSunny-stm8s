@@ -108,13 +108,27 @@
 #define CCT_STEP                50
 #define RGB_STEP                3
 
+// WATT regulation method
+/// Option 0: no restriction
+/// Option 1: percentage
+/// Option 2: percentage + linear
+/// Option 3: percentage + quadratic
+/// Option 4: percentage + cubic function
+/// Option 10: percentage + table
+#define WATT_RM_NO_RESTRICTION          0
+#define WATT_RM_PERCENTAGE              1
+#define WATT_RM_LINEAR_PERCENTAGE       2
+#define WATT_RM_QUADRATIC_PERCENTAGE    3
+#define WATT_RM_CUBIC_PERCENTAGE        4
+#define WATT_RM_TABLE_PERCENTAGE        10
+
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
 #define MAX_RF_FAILED_TIME              8      // Reset RF module when reach max failed times of sending
 #define MAX_RF_RESET_TIME               3      // Reset Node when reach max times of RF module consecutive reset
 
 // Whether allow individual color control of ring
-/// Uncomment this line only if hardware supports
+/// Uncomment this line only if h       ardware supports
 //#define RING_INDIVIDUAL_COLOR
 
 // Device (lamp) type
@@ -211,7 +225,8 @@ typedef struct
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
   UC type;                                  // Type of lamp
   US token;
-  UC reserved1                :8;
+  UC wattOption               :4;           // 0..15, ref to WATT regulation method
+  UC reserved1                :4;
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
@@ -243,7 +258,7 @@ typedef struct
   UC alsLevel[2];
   UC pirLevel[2];
   UC cntRFReset               :4;           // RF reset count
-  UC reserved1                :4;
+  UC wattOption               :4;           // 0..15, ref to WATT regulation method
   UC rfChannel;                             // RF Channel: [0..127]
 } Config_t;
 #endif
