@@ -198,7 +198,7 @@ void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   }
 }
 
-void Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
+bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
   assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
   
@@ -208,11 +208,25 @@ void Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
   
   // Write byte by byte
+  bool rc = TRUE;
+  uint8_t bytVerify, bytAttmpts;
   for( uint16_t i = 0; i < Length; i++ ) {
-    FLASH_ProgramByte(Address+i, Buffer[i]);
-    FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
+    bytAttmpts = 0;
+    while(++bytAttmpts <= 3) {
+      FLASH_ProgramByte(Address+i, Buffer[i]);
+      FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
+      
+      // Read and verify the byte we just wrote
+      bytVerify = FLASH_ReadByte(Address+i);
+      if( bytVerify == Buffer[i] ) break;
+    }
+    if( bytAttmpts > 3 ) {
+      rc = FALSE;
+      break;
+    }
   }
   FLASH_Lock(FLASH_MEMTYPE_DATA);
+  return rc;
 }
  
 void Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
@@ -288,7 +302,7 @@ void SaveConfig()
     Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig));
     gIsStatusChanged = FALSE;
     gIsChanged = FALSE;
-    gNeedSaveBackup = TRUE;
+    if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
     return;
   }
 

@@ -9,7 +9,7 @@ TriggerName=main
 LimitSize=0
 ByteLimit=50
 [DebugChecksum]
-Checksum=1829682574
+Checksum=-1197839267
 [CallStack]
 ShowArgs=0
 [Disassembly]
@@ -53,16 +53,12 @@ Bp0=_ "STD_CODE" "{$PROJ_DIR$\ProtocolParser.c}.125.9" 0 0 0 0 "" 0 ""
 Bp1=_ "STD_CODE" "{$PROJ_DIR$\Project\src\ProtocolParser.c}.64.5" 1 0 0 0 "" 0 ""
 Bp2=_ "STD_CODE" "{$PROJ_DIR$\Project\src\ProtocolParser.c}.50.5" 1 0 0 0 "" 0 ""
 Bp3=_ "STD_CODE" "{$PROJ_DIR$\Project\src\ProtocolParser.c}.42.5" 1 0 0 0 "" 0 ""
-Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.728.3" 1 0 0 0 "" 0 ""
-Bp5=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.763.3" 1 0 0 0 "" 0 ""
-Bp6=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.731.3" 1 0 0 0 "" 0 ""
-Bp7=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.763.3" 1 0 0 0 "" 0 ""
-Bp8=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.327.9" 1 0 0 0 "" 0 ""
-Bp9=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.267.5" 1 0 0 0 "" 0 ""
-Bp10=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.377.7" 1 0 0 0 "" 0 ""
-Bp11=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.279.5" 1 0 0 0 "" 0 ""
-Bp12=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.324.7" 1 0 0 0 "" 0 ""
-Count=13
+Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.341.7" 1 0 0 0 "" 0 ""
+Bp5=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.281.5" 1 0 0 0 "" 0 ""
+Bp6=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.338.5" 1 0 0 0 "" 0 ""
+Bp7=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.224.7" 1 0 0 0 "" 0 ""
+Bp8=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.336.7" 1 0 0 0 "" 0 ""
+Count=9
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""
