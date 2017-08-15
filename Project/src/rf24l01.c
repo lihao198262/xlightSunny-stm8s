@@ -209,7 +209,7 @@ void RF24L01_setup(uint8_t channel, uint8_t datarate, uint8_t powerlevel, uint8_
     RF_SETUP.RF_DR_LOW = 0x00;
     RF_SETUP.RF_DR_HIGH = 0x00;
   }
-  RF_SETUP.LNA_HCURR = 0x01;
+  //RF_SETUP.LNA_HCURR = 0x01;
   RF24L01_write_register(RF24L01_reg_RF_SETUP, ((uint8_t *)&RF_SETUP), 1);
   
   RF24L01_reg_CONFIG_content config;
