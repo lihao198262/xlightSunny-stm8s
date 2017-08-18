@@ -433,9 +433,9 @@ void LightRGBWBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WVa
   // Percentage to Pulse Width
   uint16_t usPW_Scale = BRPercent * (TIM2_PWM_PULSE / 100);
   uint16_t usPW_R = RValue * WATT_R_PERCENTAGE / 100 * usPW_Scale / 255;
-  uint16_t usPW_G = RValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
-  uint16_t usPW_B = RValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
-  uint16_t usPW_W = RValue * WATT_W_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_G = GValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_B = BValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_W = WValue * WATT_W_PERCENTAGE / 100 * usPW_Scale / 255;
   
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
@@ -461,8 +461,8 @@ void LightRGBBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t BRPe
   // Percentage to Pulse Width
   uint16_t usPW_Scale = BRPercent * (TIM2_PWM_PULSE / 100);
   uint16_t usPW_R = RValue * WATT_R_PERCENTAGE / 100 * usPW_Scale / 255;
-  uint16_t usPW_G = RValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
-  uint16_t usPW_B = RValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_G = GValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_B = BValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
   RGBCtrl(usPW_R, usPW_G, usPW_B);
