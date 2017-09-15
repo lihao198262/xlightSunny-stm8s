@@ -22,10 +22,10 @@
 #define WATT_COLD_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 #define WATT_WARM_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 
-#define WATT_W_PERCENTAGE               ((uint16_t)80)                  // 50 to 100
-#define WATT_R_PERCENTAGE               ((uint16_t)75)                  // 50 to 100
-#define WATT_G_PERCENTAGE               ((uint16_t)70)                  // 50 to 100
-#define WATT_B_PERCENTAGE               ((uint16_t)65)                  // 50 to 100
+#define WATT_W_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_R_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_G_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_B_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
 
 /* Private macro -------------------------------------------------------------*/
 #ifdef PWM_FREQUENCY_1K

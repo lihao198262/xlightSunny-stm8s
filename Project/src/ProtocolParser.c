@@ -250,14 +250,37 @@ uint8_t ParseProtocol(){
   case C_SET:
     if( (IS_MINE_SUBID(_sensor) || _specificNode) && !_isAck ) {
       if( _type == V_STATUS ) {
-        // set main lamp(ID:1) power(V_STATUS:2) on/off
-        bool _OnOff = (rcvMsg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : rcvMsg.payload.bValue == DEVICE_SW_ON);
-        SetDeviceOnOff(_OnOff, RING_ID_ALL);
-        if( _needAck ) {
-          bDelaySend = (rcvMsg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevBrightness(_sender);
-          return 1;
+        uint8_t _lenPayl = miGetLength();
+        if( _lenPayl == 1)
+        { 
+          // set main lamp(ID:1) power(V_STATUS:2) on/off
+          bool _OnOff = (rcvMsg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : rcvMsg.payload.bValue == DEVICE_SW_ON);
+          SetDeviceOnOff(_OnOff, RING_ID_ALL);
+          if( _needAck ) {
+            bDelaySend = (rcvMsg.header.destination == BROADCAST_ADDRESS);
+            Msg_DevBrightness(_sender);
+            return 1;
+          }
         }
+        else if( _lenPayl == 3)
+        {
+          uint8_t _OnOff = (rcvMsg.payload.data[0] == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : rcvMsg.payload.bValue == DEVICE_SW_ON);
+          uint8_t unit = rcvMsg.payload.data[1];
+          uint8_t time = rcvMsg.payload.data[2];
+          if(unit == MINUTE_UNIT)
+          {
+            offdelaytick = time * 60 * 100; //10ms timer
+          }
+          else if(unit == HOUR_UNIT)
+          {
+            offdelaytick = time * 60 * 60 * 100;
+          }
+          else
+          {
+            offdelaytick = time * 100;
+          }
+        }
+
       } else if( _type == V_PERCENTAGE ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness;
