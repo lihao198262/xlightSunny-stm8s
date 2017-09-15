@@ -269,15 +269,15 @@ uint8_t ParseProtocol(){
           uint8_t time = rcvMsg.payload.data[2];
           if(unit == MINUTE_UNIT)
           {
-            offdelaytick = time * 60 * 100; //10ms timer
+            offdelaytick = (int32_t)time * 60 * 100; //10ms timer
           }
           else if(unit == HOUR_UNIT)
           {
-            offdelaytick = time * 60 * 60 * 100;
+            offdelaytick = (int32_t)time * 60 * 60 * 100;
           }
           else
           {
-            offdelaytick = time * 100;
+            offdelaytick = (int32_t)time * 100;
           }
         }
 
