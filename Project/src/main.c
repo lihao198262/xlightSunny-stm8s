@@ -841,8 +841,10 @@ int main( void ) {
   // Init ADC
   ADC1_Config();
 #endif  
-  
+
+#ifdef DEBUG_LOG  
   uart2_config(9600);
+#endif 
   
   // Init timer
   TIM4_5ms_handler = idleProcess;
