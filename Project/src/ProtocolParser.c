@@ -101,15 +101,23 @@ uint8_t ParseProtocol(){
             return 0;
           }
         }
-        gConfig.nodeID = lv_nodeID;
-        memcpy(gConfig.NetworkID, rcvMsg.payload.data, sizeof(gConfig.NetworkID));
-        gIsChanged = TRUE;
-        GotNodeID();
-        // Increase brightness to indicate ID required
-        if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
-          SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
-          Msg_DevBrightness(_sender);
-          return 1;
+        if(_isAck)
+        { // request nodeid response
+          gConfig.nodeID = lv_nodeID;
+          memcpy(gConfig.NetworkID, rcvMsg.payload.data, sizeof(gConfig.NetworkID));
+          gIsChanged = TRUE;
+          GotNodeID();
+          // Increase brightness to indicate ID required
+          if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
+            SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
+            Msg_DevBrightness(_sender);
+            return 1;
+          }
+        }
+        else
+        { // change node,need register
+           gConfig.nodeID = lv_nodeID;
+           ResetNodeToRegister();
         }
       }
     } else if( _type == I_REBOOT ) {

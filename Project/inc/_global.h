@@ -9,7 +9,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-#define ENABLE_SDTM
+//#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor
@@ -288,6 +288,7 @@ bool SetDeviceFilter(uint8_t _filter);
 void tmrProcess();
 void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
+void ResetNodeToRegister();
 
 #define SECOND_UNIT  1
 #define MINUTE_UNIT  2

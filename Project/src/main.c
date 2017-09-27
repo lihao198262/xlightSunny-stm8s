@@ -79,7 +79,7 @@ Connections:
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
-#define DEBUG_LOG
+//#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -444,6 +444,12 @@ void UpdateNodeAddress(uint8_t _tx) {
   RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
+void ResetNodeToRegister()
+{
+    mStatus = SYS_RESET;
+    InitNodeAddress();
+}
+
 // reset rf
 void ResetRFModule()
 {
@@ -456,7 +462,7 @@ void ResetRFModule()
   }
   if(gResetNode)
   {
-    mStatus = SYS_RESET;
+    ResetNodeToRegister();
     gResetNode=FALSE;
   }
 }
