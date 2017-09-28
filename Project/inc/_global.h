@@ -270,6 +270,9 @@ extern bool gIsStatusChanged;
 extern bool gResetRF;
 extern bool gResetNode;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
+// off delay tick
+extern int32_t offdelaytick;
+
 
 bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen);
 void GotNodeID();
@@ -285,6 +288,11 @@ bool SetDeviceFilter(uint8_t _filter);
 void tmrProcess();
 void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
+void ResetNodeToRegister();
+
+#define SECOND_UNIT  1
+#define MINUTE_UNIT  2
+#define HOUR_UNIT    3
 
 // All rings or the first ring
 #define DEVST_OnOff             gConfig.ring[0].State

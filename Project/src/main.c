@@ -79,6 +79,8 @@ Connections:
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
+//#define DEBUG_LOG
+
 // System Startup Status
 #define SYS_INIT                        0
 #define SYS_RESET                       1
@@ -146,6 +148,8 @@ uint16_t pwm_Cold = 0;
 // Keep Alive Timer
 uint16_t mTimerKeepAlive = 0;
 uint8_t m_cntRFSendFailed = 0;
+
+int32_t offdelaytick = -1;
 
 #ifdef EN_SENSOR_ALS
    uint16_t als_tick = 0;
@@ -401,9 +405,9 @@ void LoadConfig()
     gConfig.subID = 1;
     gConfig.wattOption = WATT_RM_NO_RESTRICTION;
   } else if(gConfig.type == devtypWSquare60) {
-    gConfig.wattOption = WATT_RM_TABLE_PERCENTAGE;
+    gConfig.wattOption = WATT_RM_NO_RESTRICTION;
   }
-  
+  //gConfig.wattOption = WATT_RM_NO_RESTRICTION;
   // Classroom light: 1
   //gConfig.subID = 2;          // Blackboard light: 2
   //gConfig.rfDataRate = RF24_250KBPS;
@@ -440,6 +444,12 @@ void UpdateNodeAddress(uint8_t _tx) {
   RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
+void ResetNodeToRegister()
+{
+    mStatus = SYS_RESET;
+    InitNodeAddress();
+}
+
 // reset rf
 void ResetRFModule()
 {
@@ -452,7 +462,7 @@ void ResetRFModule()
   }
   if(gResetNode)
   {
-    mStatus = SYS_RESET;
+    ResetNodeToRegister();
     gResetNode=FALSE;
   }
 }
@@ -625,6 +635,57 @@ void GotPresented() {
   SaveConfig();
 }
 
+void itoa(unsigned int n, char * buf)
+{
+        int i;
+        
+        if(n < 10)
+        {
+                buf[0] = n + '0';
+                buf[1] = '\0';
+                return;
+        }
+        itoa(n / 10, buf);
+
+        for(i=0; buf[i]!='\0'; i++);
+        
+        buf[i] = (n % 10) + '0';
+        
+        buf[i+1] = '\0';
+}
+
+void printlog(uint8_t *pBuf)
+{
+#ifdef DEBUG_LOG
+  Uart2SendString(pBuf);
+#endif
+}
+
+void printnum(unsigned int num)
+{
+#ifdef DEBUG_LOG
+  char buf[10] = {0};
+  itoa(num,buf);
+  printlog(buf);
+#endif
+}
+
+void PrintDevStatus()
+{ 
+  uint8_t r_index = 0;
+  for( r_index = 0; r_index < MAX_RING_NUM; r_index++ ) {
+    printlog("ring ");
+    printnum(r_index);
+    printlog(" ");
+    printnum(RINGST_OnOff(r_index));
+    printlog(",");
+    printnum(RINGST_Bright(r_index));
+    printlog(",");
+    printnum(RINGST_WarmCold(r_index));
+    printlog("\r\n"); 
+  }
+}
+
 bool SayHelloToDevice(bool infinate) {
   uint8_t _count = 0;
   uint8_t _presentCnt = 0;
@@ -780,6 +841,10 @@ int main( void ) {
   // Init ADC
   ADC1_Config();
 #endif  
+
+#ifdef DEBUG_LOG  
+  uart2_config(9600);
+#endif 
   
   // Init timer
   TIM4_5ms_handler = idleProcess;
@@ -820,13 +885,13 @@ int main( void ) {
         mutex = 0;
         WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
       } else {
-        gConfig.cntRFReset == 0;
+        gConfig.cntRFReset = 0;
       }
     }
   
     // IRQ
     NRF2401_EnableIRQ();
-  
+    PrintDevStatus();
 #ifdef ENABLE_SDTM
     gConfig.nodeID = BASESERVICE_ADDRESS;
     memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
@@ -847,9 +912,8 @@ int main( void ) {
       SayHelloToDevice(TRUE);
     }
 #endif
-    
+    //PrintDevStatus();
     while (mStatus == SYS_RUNNING) {
-      
       // Feed the Watchdog
       feed_wwdg();
       
@@ -983,6 +1047,12 @@ int main( void ) {
       
       // Save Config if Changed
       SaveConfig();
+      
+      if(offdelaytick == 0)
+      {
+        offdelaytick = -1;
+        SetDeviceOnOff(0, RING_ID_ALL);
+      }
       
       // Idle process, do it in timer4
       //idleProcess();
@@ -1149,7 +1219,11 @@ void DelaySendMsg(uint16_t _msg, uint8_t _ring) {
 
 // Gradually turn on or off
 bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
-  
+  printlog("setonoff ");
+  printnum(_ring);
+  printlog("-");
+  printnum(_sw);
+  printlog("\r\n");
 #ifdef RING_INDIVIDUAL_COLOR
   
   uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
@@ -1239,7 +1313,11 @@ bool SetDeviceOnOff(bool _sw, uint8_t _ring) {
 
 // Gradually change brightness
 bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
-
+  printlog("setbr ");
+  printnum(_ring);
+  printlog("-");
+  printnum(_br);
+  printlog("\r\n");
 #ifdef RING_INDIVIDUAL_COLOR
   
   uint8_t r_index = (_ring == RING_ID_ALL ? 0 : _ring - 1);
@@ -1312,7 +1390,11 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
 
 // Gradually change cct
 bool SetDeviceCCT(uint16_t _cct, uint8_t _ring) {
-  
+  printlog("setcct ");
+  printnum(_ring);
+  printlog("-");
+  printnum(_cct);
+  printlog("\r\n");
   if( _cct > CT_MAX_VALUE ) {
     _cct = CT_MAX_VALUE;
   } else if( _cct < CT_MIN_VALUE ) {
@@ -1738,7 +1820,10 @@ void tmrProcess() {
 #ifdef EN_SENSOR_DHT       
    dht_tick++;
 #endif
-   
+   if(offdelaytick > 0)
+  {
+    offdelaytick--; 
+  }  
   // Save config into backup area
    SaveBackupConfig();
 }

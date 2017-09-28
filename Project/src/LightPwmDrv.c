@@ -22,10 +22,10 @@
 #define WATT_COLD_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 #define WATT_WARM_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 
-#define WATT_W_PERCENTAGE               ((uint16_t)80)                  // 50 to 100
-#define WATT_R_PERCENTAGE               ((uint16_t)75)                  // 50 to 100
-#define WATT_G_PERCENTAGE               ((uint16_t)70)                  // 50 to 100
-#define WATT_B_PERCENTAGE               ((uint16_t)65)                  // 50 to 100
+#define WATT_W_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_R_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_G_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_B_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
 
 /* Private macro -------------------------------------------------------------*/
 #ifdef PWM_FREQUENCY_1K
@@ -431,7 +431,7 @@ void LightRGBWBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WVa
   */
   
   // Percentage to Pulse Width
-  uint16_t usPW_Scale = BRPercent * (TIM2_PWM_PULSE / 100);
+  uint32_t usPW_Scale = BRPercent * (TIM2_PWM_PULSE / 100);
   uint16_t usPW_R = RValue * WATT_R_PERCENTAGE / 100 * usPW_Scale / 255;
   uint16_t usPW_G = GValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
   uint16_t usPW_B = BValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
