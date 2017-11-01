@@ -49,6 +49,18 @@ Connections:
 
 */
 
+void testio()
+{
+  GPIO_Init(GPIOB , GPIO_PIN_5 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOB , GPIO_PIN_4 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOB , GPIO_PIN_3 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOB , GPIO_PIN_2 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOB , GPIO_PIN_1 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOB , GPIO_PIN_0 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOD , GPIO_PIN_1 , GPIO_MODE_OUT_PP_LOW_SLOW);
+  GPIO_Init(GPIOD , GPIO_PIN_7 , GPIO_MODE_OUT_PP_LOW_SLOW);
+}
+
 // Choose Product Name & Type
 /// Sunny
 #if defined(XSUNNY)
@@ -79,7 +91,7 @@ Connections:
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
-//#define DEBUG_LOG
+#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -537,6 +549,42 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   pwm_Cold = ucWarmCold*ucBright/1000 ;
 }
 
+
+void itoa(unsigned int n, char * buf)
+{
+        int i;
+        
+        if(n < 10)
+        {
+                buf[0] = n + '0';
+                buf[1] = '\0';
+                return;
+        }
+        itoa(n / 10, buf);
+
+        for(i=0; buf[i]!='\0'; i++);
+        
+        buf[i] = (n % 10) + '0';
+        
+        buf[i+1] = '\0';
+}
+
+void printlog(uint8_t *pBuf)
+{
+#ifdef DEBUG_LOG
+  Uart2SendString(pBuf);
+#endif
+}
+
+void printnum(unsigned int num)
+{
+#ifdef DEBUG_LOG
+  char buf[10] = {0};
+  itoa(num,buf);
+  printlog(buf);
+#endif
+}
+
 // Send message and switch back to receive mode
 bool SendMyMessage() {
   if( bMsgReady ) {
@@ -559,11 +607,13 @@ bool SendMyMessage() {
       */
 
       mutex = 0;
-      RF24L01_set_mode_TX();
-      RF24L01_write_payload(psndMsg, PLOAD_WIDTH);
-
+//disableInterrupts();
+      if(RF24L01_set_mode_TX_timeout() == -1) 
+        break;
+      if(RF24L01_write_payload_timeout(psndMsg, PLOAD_WIDTH) == -1) 
+        break;
+//enableInterrupts();
       WaitMutex(0x1FFFF);
-      
 #ifndef ENABLE_SDTM      
       if (mutex == 1) {
         m_cntRFSendFailed = 0;
@@ -633,41 +683,6 @@ void GotPresented() {
   gConfig.swTimes = 0;
   gIsStatusChanged = TRUE;
   SaveConfig();
-}
-
-void itoa(unsigned int n, char * buf)
-{
-        int i;
-        
-        if(n < 10)
-        {
-                buf[0] = n + '0';
-                buf[1] = '\0';
-                return;
-        }
-        itoa(n / 10, buf);
-
-        for(i=0; buf[i]!='\0'; i++);
-        
-        buf[i] = (n % 10) + '0';
-        
-        buf[i+1] = '\0';
-}
-
-void printlog(uint8_t *pBuf)
-{
-#ifdef DEBUG_LOG
-  Uart2SendString(pBuf);
-#endif
-}
-
-void printnum(unsigned int num)
-{
-#ifdef DEBUG_LOG
-  char buf[10] = {0};
-  itoa(num,buf);
-  printlog(buf);
-#endif
 }
 
 void PrintDevStatus()
@@ -845,12 +860,12 @@ int main( void ) {
 #ifdef DEBUG_LOG  
   uart2_config(9600);
 #endif 
-  
+  testio();
   // Init timer
   TIM4_5ms_handler = idleProcess;
   TIM4_10ms_handler = tmrProcess;
   Time4_Init();
-  
+  printlog("start...");
   // Init serial ports
   //uart2_config(9600);
   
@@ -886,6 +901,7 @@ int main( void ) {
         WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
       } else {
         gConfig.cntRFReset = 0;
+        printlog("rf reset");
       }
     }
   
@@ -914,6 +930,7 @@ int main( void ) {
 #endif
     //PrintDevStatus();
     while (mStatus == SYS_RUNNING) {
+      
       // Feed the Watchdog
       feed_wwdg();
       
@@ -1041,19 +1058,24 @@ int main( void ) {
       // reset rf
       ResetRFModule();
       ////////////rfscanner process///////////////////////////////     
-      
       // Send message if ready
+      //printlog("SndS");
+      //PB_3High;
       SendMyMessage();
-      
+      //PB3_Low;
+      //printlog("SndE");
       // Save Config if Changed
+      //PB1_High;
       SaveConfig();
-      
+      //PB1_Low;
+      //printlog("SvgE");
       if(offdelaytick == 0)
       {
+        printlog("soffS");
         offdelaytick = -1;
         SetDeviceOnOff(0, RING_ID_ALL);
+        printlog("soffE");
       }
-      
       // Idle process, do it in timer4
       //idleProcess();
       
@@ -1868,11 +1890,13 @@ void idleProcess() {
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
+  PD7_High;
   if(RF24L01_is_data_available()) {
     //Packet was received
     RF24L01_clear_interrupts();
     RF24L01_read_payload(prcvMsg, PLOAD_WIDTH);
     bMsgReady = ParseProtocol();
+    PD7_Low;
     return;
   }
  
@@ -1881,8 +1905,9 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
     //Packet was sent or max retries reached
     RF24L01_clear_interrupts();
     mutex = sent_info;
+    PD7_Low;
     return;
   }
-
    RF24L01_clear_interrupts();
+  PD7_Low;
 }
