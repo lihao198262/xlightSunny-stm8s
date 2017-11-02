@@ -665,11 +665,7 @@ bool SendMyMessage() {
     
     // Switch back to receive mode
     bMsgReady = 0;
-    uint8_t retry=3;
-    while(retry--)
-    {
-      if(RF24L01_set_mode_RX_timeout() ==0) break;
-    }   
+    RF24L01_set_mode_RX();
     // Reset Keep Alive Timer
     mTimerKeepAlive = 0;
   }
