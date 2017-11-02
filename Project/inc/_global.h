@@ -330,6 +330,9 @@ void ResetNodeToRegister();
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 #define IS_MINE_SUBID(nSID)        ((nSID) == 0 || ((nSID) & gConfig.subID))
 
+//#define TEST
+
+#ifdef TEST
 #define     PB5_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_5)
 #define     PB_4Low                GPIO_WriteLow(GPIOB , GPIO_PIN_4)
 #define     PB_3Low                GPIO_WriteLow(GPIOB , GPIO_PIN_3)
@@ -350,6 +353,6 @@ void ResetNodeToRegister();
 #define     PD2_High                GPIO_WriteHigh(GPIOD , GPIO_PIN_2)
 #define     PD7_High                GPIO_WriteHigh(GPIOD , GPIO_PIN_7)
 #define     PC1_High                GPIO_WriteHigh(GPIOC , GPIO_PIN_1)
-
+#endif
 
 #endif /* __GLOBAL_H */

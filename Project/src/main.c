@@ -48,7 +48,7 @@ Connections:
   PC2 -> IRQ
 
 */
-
+#ifdef TEST
 void testio()
 {
   GPIO_Init(GPIOB , GPIO_PIN_5 , GPIO_MODE_OUT_PP_LOW_SLOW);
@@ -60,6 +60,7 @@ void testio()
   GPIO_Init(GPIOD , GPIO_PIN_1 , GPIO_MODE_OUT_PP_LOW_SLOW);
   GPIO_Init(GPIOD , GPIO_PIN_7 , GPIO_MODE_OUT_PP_LOW_SLOW);
 }
+#endif
 
 // Choose Product Name & Type
 /// Sunny
@@ -83,7 +84,7 @@ void testio()
 #define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + BACKUP_CONFIG_BLOCK_NUM * FLASH_BLOCK_SIZE)
 
 // RF channel for the sensor net, 0-127
-#define RF24_CHANNEL	   		71
+#define RF24_CHANNEL	   		100
 
 // Window Watchdog
 // Uncomment this line if in debug mode
@@ -91,7 +92,7 @@ void testio()
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
-#define DEBUG_LOG
+//#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -373,7 +374,7 @@ void LoadConfig()
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfChannel = RF24_CHANNEL;
       gConfig.rfPowerLevel = RF24_PA_MAX;
-      gConfig.rfDataRate = RF24_1MBPS;      
+      gConfig.rfDataRate = RF24_250KBPS;      
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       gConfig.wattOption = WATT_RM_NO_RESTRICTION;
@@ -400,7 +401,7 @@ void LoadConfig()
       gConfig.pirLevel[0] = 0;
       gConfig.pirLevel[1] = 0;        
     }
-    gConfig.swTimes = 0;
+    //gConfig.swTimes = 0;
     gIsChanged = TRUE;
   } else {
     uint8_t bytVersion;
@@ -860,7 +861,9 @@ int main( void ) {
 #ifdef DEBUG_LOG  
   uart2_config(9600);
 #endif 
+#ifdef TEST
   testio();
+#endif
   // Init timer
   TIM4_5ms_handler = idleProcess;
   TIM4_10ms_handler = tmrProcess;
@@ -1890,13 +1893,17 @@ void idleProcess() {
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
+#ifdef TEST
   PD7_High;
+#endif
   if(RF24L01_is_data_available()) {
     //Packet was received
     RF24L01_clear_interrupts();
     RF24L01_read_payload(prcvMsg, PLOAD_WIDTH);
     bMsgReady = ParseProtocol();
+#ifdef TEST
     PD7_Low;
+#endif
     return;
   }
  
@@ -1905,9 +1912,13 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
     //Packet was sent or max retries reached
     RF24L01_clear_interrupts();
     mutex = sent_info;
+#ifdef TEST
     PD7_Low;
+#endif
     return;
   }
    RF24L01_clear_interrupts();
+#ifdef TEST
   PD7_Low;
+#endif
 }
