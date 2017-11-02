@@ -412,6 +412,7 @@ void LoadConfig()
   // Engineering Code
   //gConfig.nodeID = BASESERVICE_ADDRESS;
   //gConfig.swTimes = 0;
+  gConfig.rfChannel = 103;
   if(gConfig.type == devtypWBlackboard)
   {
     gConfig.nodeID = 1;
@@ -664,8 +665,11 @@ bool SendMyMessage() {
     
     // Switch back to receive mode
     bMsgReady = 0;
-    RF24L01_set_mode_RX();
-    
+    uint8_t retry=3;
+    while(retry--)
+    {
+      if(RF24L01_set_mode_RX_timeout() ==0) break;
+    }   
     // Reset Keep Alive Timer
     mTimerKeepAlive = 0;
   }

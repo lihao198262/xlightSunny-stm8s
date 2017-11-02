@@ -330,13 +330,13 @@ void ResetNodeToRegister();
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 #define IS_MINE_SUBID(nSID)        ((nSID) == 0 || ((nSID) & gConfig.subID))
 
-//#define TEST
+#define TEST
 
 #ifdef TEST
 #define     PB5_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_5)
-#define     PB_4Low                GPIO_WriteLow(GPIOB , GPIO_PIN_4)
-#define     PB_3Low                GPIO_WriteLow(GPIOB , GPIO_PIN_3)
-#define     PB_2Low                GPIO_WriteLow(GPIOB , GPIO_PIN_2)
+#define     PB4_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_4)
+#define     PB3_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_3)
+#define     PB2_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_2)
 #define     PB1_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_1)
 #define     PB0_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_0)
 #define     PD1_Low                GPIO_WriteLow(GPIOD , GPIO_PIN_1)
@@ -344,9 +344,9 @@ void ResetNodeToRegister();
 #define     PD7_Low                GPIO_WriteLow(GPIOD , GPIO_PIN_7)
 #define     PC1_Low                GPIO_WriteLow(GPIOC , GPIO_PIN_1)
 #define     PB5_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_5)
-#define     PB_4High                GPIO_WriteHigh(GPIOB , GPIO_PIN_4)
-#define     PB_3High                GPIO_WriteHigh(GPIOB , GPIO_PIN_3)
-#define     PB_2High                GPIO_WriteHigh(GPIOB , GPIO_PIN_2)
+#define     PB4_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_4)
+#define     PB3_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_3)
+#define     PB2_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_2)
 #define     PB1_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_1)
 #define     PB0_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_0)
 #define     PD1_High                GPIO_WriteHigh(GPIOD , GPIO_PIN_1)
