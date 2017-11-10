@@ -92,7 +92,9 @@ void testio()
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
 
-//#define DEBUG_LOG
+#define NO_RESTART_MODE
+
+#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -412,7 +414,6 @@ void LoadConfig()
   // Engineering Code
   //gConfig.nodeID = BASESERVICE_ADDRESS;
   //gConfig.swTimes = 0;
-  gConfig.rfChannel = 103;
   if(gConfig.type == devtypWBlackboard)
   {
     gConfig.nodeID = 1;
@@ -631,8 +632,15 @@ bool SendMyMessage() {
             // Save Data
             gIsStatusChanged = TRUE;
             SaveConfig();
+            
+#ifdef NO_RESTART_MODE
+            // Reset whole node
+            mStatus = SYS_RESET;
+#else
             // Cold Reset
-            WWDG->CR = 0x80;
+            WWDG->CR = 0x80;   
+#endif
+            
             break;
           } else if( gConfig.cntRFReset > 1 ) {
             // Reset whole node

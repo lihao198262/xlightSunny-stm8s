@@ -296,14 +296,26 @@ uint8_t ParseProtocol(){
         if( miGetLength() == 2 ) {
           switch( rcvMsg.payload.data[0] ) {
           case OPERATOR_ADD:
-            _Brightness = DEVST_Bright + rcvMsg.payload.data[1];
-            if( _Brightness > 100 ) _Brightness = 100;
+              _Brightness = DEVST_Bright + rcvMsg.payload.data[1];
+              if( _Brightness > 100 ) _Brightness = 100;
+              if(_sender == NODEID_MIN_REMOTE && rcvMsg.header.destination == BROADCAST_ADDRESS)
+              { // remote broadcast msg for power test
+                if( _Brightness%10 !=0 && _Brightness/10 >= 3 ) _Brightness = 50;
+              }
+
             break;
           case OPERATOR_SUB:
             if(DEVST_Bright > rcvMsg.payload.data[1] + BR_MIN_VALUE) {
               _Brightness = DEVST_Bright - rcvMsg.payload.data[1];
             } else {
-              _Brightness = BR_MIN_VALUE;
+              if(_sender == NODEID_MIN_REMOTE && rcvMsg.header.destination == BROADCAST_ADDRESS)
+              { // remote broadcast msg for power test
+                _Brightness = 5;
+              }
+              else
+              {
+                _Brightness = BR_MIN_VALUE;
+              }
             }
             break;
           default:      // OPERATOR_SET
