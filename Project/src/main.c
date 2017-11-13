@@ -165,6 +165,7 @@ uint16_t mTimerKeepAlive = 0;
 uint8_t m_cntRFSendFailed = 0;
 
 int32_t offdelaytick = -1;
+uint8_t flashWritting = 0;
 
 #ifdef EN_SENSOR_ALS
    uint16_t als_tick = 0;
@@ -208,6 +209,18 @@ void feed_wwdg(void) {
 #endif  
 }
 
+int8_t wait_flashflag_status(uint8_t flag,uint8_t status)
+{
+    uint16_t timeout = 60000;
+    while( FLASH_GetFlagStatus(flag)== status && timeout--);
+    if(!timeout) 
+    {
+      //printlog("timeout!");
+      return 1;
+    }
+    return 0;
+}
+
 void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
   assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
@@ -220,11 +233,17 @@ void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
 bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
   assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
-  
+  if(flashWritting == 1)
+  {
+    printlog("iswriting");
+    return FALSE;
+  }
+  flashWritting = 1;
   // Init Flash Read & Write
   FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
   FLASH_Unlock(FLASH_MEMTYPE_DATA);
-  while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  //while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  if(wait_flashflag_status(FLASH_FLAG_DUL,RESET)) return FALSE;
   
   // Write byte by byte
   bool rc = TRUE;
@@ -245,14 +264,22 @@ bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
     }
   }
   FLASH_Lock(FLASH_MEMTYPE_DATA);
+  flashWritting = 0;
   return rc;
 }
  
-void Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
+bool Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
   // Init Flash Read & Write
+  if(flashWritting == 1) 
+  {
+    printlog("iswriting");
+    return FALSE;
+  }
+  flashWritting = 1;
   FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
   FLASH_Unlock(FLASH_MEMTYPE_DATA);
-  while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  //while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  if(wait_flashflag_status(FLASH_FLAG_DUL,RESET)) return FALSE;
   
   uint8_t WriteBuf[FLASH_BLOCK_SIZE];
   uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
@@ -266,6 +293,8 @@ void Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length
   }
   
   FLASH_Lock(FLASH_MEMTYPE_DATA);
+  flashWritting = 0;
+  return TRUE;
 }
 
 uint8_t *Read_UniqueID(uint8_t *UniqueID, uint16_t Length)  
@@ -297,8 +326,14 @@ void SaveBackupConfig()
 {
   if( gNeedSaveBackup ) {
     // Overwrite entire config FLASH
-    Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig));
-    gNeedSaveBackup = FALSE;
+    if(Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig)))
+    {
+      gNeedSaveBackup = FALSE;
+    }
+    else
+    {
+      printlog("back write fail");
+    }
   }
 }
 
@@ -309,8 +344,14 @@ void SaveStatusData()
     uint8_t pData[50] = {0};
     uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
     memcpy(pData, (uint8_t *)&gConfig, nLen);
-    Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1);
-    gIsStatusChanged = FALSE;
+    if(Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1))
+    {
+      gIsStatusChanged = FALSE;
+    }
+    else
+    {
+      printlog("status write fail");
+    }  
 }
 
 // Save config to Flash
@@ -318,11 +359,17 @@ void SaveConfig()
 {
   if( gIsChanged ) {
     // Overwrite entire config FLASH
-    Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig));
-    gIsStatusChanged = FALSE;
-    gIsChanged = FALSE;
     if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
-    return;
+    if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
+    {
+      gIsStatusChanged = FALSE;
+      gIsChanged = FALSE;
+      return;
+    }
+    else
+    {
+      printlog("cfg write fail");
+    }   
   }
 
   if( gIsStatusChanged ) {

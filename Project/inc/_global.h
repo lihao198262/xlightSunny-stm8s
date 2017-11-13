@@ -289,6 +289,7 @@ void tmrProcess();
 void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 void ResetNodeToRegister();
+void printlog(uint8_t *pBuf);
 
 #define SECOND_UNIT  1
 #define MINUTE_UNIT  2
