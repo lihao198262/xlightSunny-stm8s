@@ -48,7 +48,7 @@ Connections:
   PC2 -> IRQ
 
 */
-
+#ifdef TEST
 void testio()
 {
   GPIO_Init(GPIOB , GPIO_PIN_5 , GPIO_MODE_OUT_PP_LOW_SLOW);
@@ -60,6 +60,7 @@ void testio()
   GPIO_Init(GPIOD , GPIO_PIN_1 , GPIO_MODE_OUT_PP_LOW_SLOW);
   GPIO_Init(GPIOD , GPIO_PIN_7 , GPIO_MODE_OUT_PP_LOW_SLOW);
 }
+#endif
 
 // Choose Product Name & Type
 /// Sunny
@@ -83,13 +84,15 @@ void testio()
 #define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + BACKUP_CONFIG_BLOCK_NUM * FLASH_BLOCK_SIZE)
 
 // RF channel for the sensor net, 0-127
-#define RF24_CHANNEL	   		71
+#define RF24_CHANNEL	   		100
 
 // Window Watchdog
 // Uncomment this line if in debug mode
 #define DEBUG_NO_WWDG
 #define WWDG_COUNTER                    0x7f
 #define WWDG_WINDOW                     0x77
+
+#define NO_RESTART_MODE
 
 #define DEBUG_LOG
 
@@ -162,6 +165,7 @@ uint16_t mTimerKeepAlive = 0;
 uint8_t m_cntRFSendFailed = 0;
 
 int32_t offdelaytick = -1;
+uint8_t flashWritting = 0;
 
 #ifdef EN_SENSOR_ALS
    uint16_t als_tick = 0;
@@ -205,6 +209,18 @@ void feed_wwdg(void) {
 #endif  
 }
 
+int8_t wait_flashflag_status(uint8_t flag,uint8_t status)
+{
+    uint16_t timeout = 60000;
+    while( FLASH_GetFlagStatus(flag)== status && timeout--);
+    if(!timeout) 
+    {
+      //printlog("timeout!");
+      return 1;
+    }
+    return 0;
+}
+
 void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
   assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
@@ -217,11 +233,17 @@ void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
 bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   assert_param(IS_FLASH_ADDRESS_OK(Address));
   assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
-  
+  if(flashWritting == 1)
+  {
+    printlog("iswriting");
+    return FALSE;
+  }
+  flashWritting = 1;
   // Init Flash Read & Write
   FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
   FLASH_Unlock(FLASH_MEMTYPE_DATA);
-  while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  //while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  if(wait_flashflag_status(FLASH_FLAG_DUL,RESET)) return FALSE;
   
   // Write byte by byte
   bool rc = TRUE;
@@ -242,14 +264,22 @@ bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
     }
   }
   FLASH_Lock(FLASH_MEMTYPE_DATA);
+  flashWritting = 0;
   return rc;
 }
  
-void Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
+bool Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
   // Init Flash Read & Write
+  if(flashWritting == 1) 
+  {
+    printlog("iswriting");
+    return FALSE;
+  }
+  flashWritting = 1;
   FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
   FLASH_Unlock(FLASH_MEMTYPE_DATA);
-  while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  //while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
+  if(wait_flashflag_status(FLASH_FLAG_DUL,RESET)) return FALSE;
   
   uint8_t WriteBuf[FLASH_BLOCK_SIZE];
   uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
@@ -263,6 +293,8 @@ void Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length
   }
   
   FLASH_Lock(FLASH_MEMTYPE_DATA);
+  flashWritting = 0;
+  return TRUE;
 }
 
 uint8_t *Read_UniqueID(uint8_t *UniqueID, uint16_t Length)  
@@ -294,8 +326,14 @@ void SaveBackupConfig()
 {
   if( gNeedSaveBackup ) {
     // Overwrite entire config FLASH
-    Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig));
-    gNeedSaveBackup = FALSE;
+    if(Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig)))
+    {
+      gNeedSaveBackup = FALSE;
+    }
+    else
+    {
+      printlog("back write fail");
+    }
   }
 }
 
@@ -306,8 +344,14 @@ void SaveStatusData()
     uint8_t pData[50] = {0};
     uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
     memcpy(pData, (uint8_t *)&gConfig, nLen);
-    Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1);
-    gIsStatusChanged = FALSE;
+    if(Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1))
+    {
+      gIsStatusChanged = FALSE;
+    }
+    else
+    {
+      printlog("status write fail");
+    }  
 }
 
 // Save config to Flash
@@ -315,11 +359,17 @@ void SaveConfig()
 {
   if( gIsChanged ) {
     // Overwrite entire config FLASH
-    Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig));
-    gIsStatusChanged = FALSE;
-    gIsChanged = FALSE;
     if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
-    return;
+    if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
+    {
+      gIsStatusChanged = FALSE;
+      gIsChanged = FALSE;
+      return;
+    }
+    else
+    {
+      printlog("cfg write fail");
+    }   
   }
 
   if( gIsStatusChanged ) {
@@ -373,7 +423,7 @@ void LoadConfig()
       gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfChannel = RF24_CHANNEL;
       gConfig.rfPowerLevel = RF24_PA_MAX;
-      gConfig.rfDataRate = RF24_1MBPS;      
+      gConfig.rfDataRate = RF24_250KBPS;      
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       gConfig.wattOption = WATT_RM_NO_RESTRICTION;
@@ -400,7 +450,7 @@ void LoadConfig()
       gConfig.pirLevel[0] = 0;
       gConfig.pirLevel[1] = 0;        
     }
-    gConfig.swTimes = 0;
+    //gConfig.swTimes = 0;
     gIsChanged = TRUE;
   } else {
     uint8_t bytVersion;
@@ -629,8 +679,15 @@ bool SendMyMessage() {
             // Save Data
             gIsStatusChanged = TRUE;
             SaveConfig();
+            
+#ifdef NO_RESTART_MODE
+            // Reset whole node
+            mStatus = SYS_RESET;
+#else
             // Cold Reset
-            WWDG->CR = 0x80;
+            WWDG->CR = 0x80;   
+#endif
+            
             break;
           } else if( gConfig.cntRFReset > 1 ) {
             // Reset whole node
@@ -664,7 +721,6 @@ bool SendMyMessage() {
     // Switch back to receive mode
     bMsgReady = 0;
     RF24L01_set_mode_RX();
-    
     // Reset Keep Alive Timer
     mTimerKeepAlive = 0;
   }
@@ -860,7 +916,9 @@ int main( void ) {
 #ifdef DEBUG_LOG  
   uart2_config(9600);
 #endif 
+#ifdef TEST
   testio();
+#endif
   // Init timer
   TIM4_5ms_handler = idleProcess;
   TIM4_10ms_handler = tmrProcess;
@@ -1890,13 +1948,17 @@ void idleProcess() {
 }
 
 INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
+#ifdef TEST
   PD7_High;
+#endif
   if(RF24L01_is_data_available()) {
     //Packet was received
     RF24L01_clear_interrupts();
     RF24L01_read_payload(prcvMsg, PLOAD_WIDTH);
     bMsgReady = ParseProtocol();
+#ifdef TEST
     PD7_Low;
+#endif
     return;
   }
  
@@ -1905,9 +1967,13 @@ INTERRUPT_HANDLER(EXTI_PORTC_IRQHandler, 5) {
     //Packet was sent or max retries reached
     RF24L01_clear_interrupts();
     mutex = sent_info;
+#ifdef TEST
     PD7_Low;
+#endif
     return;
   }
    RF24L01_clear_interrupts();
+#ifdef TEST
   PD7_Low;
+#endif
 }
