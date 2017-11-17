@@ -128,7 +128,7 @@ void testio()
 #define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
-#define SUNNY_SWITCH_INTERVAL           3600*3*100  // 3Hour
+#define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
 uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
@@ -464,6 +464,7 @@ void LoadConfig()
   // Engineering Code
   //gConfig.nodeID = BASESERVICE_ADDRESS;
   //gConfig.swTimes = 0;
+  gConfig.rfChannel = 103;
   if(gConfig.type == devtypWBlackboard)
   {
     gConfig.nodeID = 1;
