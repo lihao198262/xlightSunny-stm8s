@@ -226,7 +226,8 @@ typedef struct
   UC type;                                  // Type of lamp
   US token;
   UC wattOption               :4;           // 0..15, ref to WATT regulation method
-  UC reserved1                :4;
+  UC enAutoPowerTest          :1;           // power auto test mode
+  UC reserved1                :3;
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
@@ -331,7 +332,7 @@ void printlog(uint8_t *pBuf);
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 #define IS_MINE_SUBID(nSID)        ((nSID) == 0 || ((nSID) & gConfig.subID))
 
-#define TEST
+//#define TEST
 
 #ifdef TEST
 #define     PB5_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_5)

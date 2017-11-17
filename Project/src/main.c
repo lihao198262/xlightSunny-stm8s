@@ -94,7 +94,7 @@ void testio()
 
 #define NO_RESTART_MODE
 
-#define DEBUG_LOG
+//#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -128,6 +128,8 @@ void testio()
 #define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
+#define SUNNY_SWITCH_INTERVAL           3600*3*100  // 3Hour
+uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
 
@@ -427,6 +429,8 @@ void LoadConfig()
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+      // default enable auto power test mode
+      gConfig.enAutoPowerTest = 1;
       //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
@@ -457,7 +461,6 @@ void LoadConfig()
     Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
     if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
   }
-  
   // Engineering Code
   //gConfig.nodeID = BASESERVICE_ADDRESS;
   //gConfig.swTimes = 0;
@@ -756,6 +759,29 @@ void PrintDevStatus()
     printlog("\r\n"); 
   }
 }
+void ProcessAutoSwitchLight()
+{
+  if(gConfig.enAutoPowerTest)
+  {
+    if(gRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
+    {// switch light cct
+      gRunningTimeTick = 0;
+      SetDeviceBrightness(100,0);
+      if(DEVST_WarmCold >=3000 && DEVST_WarmCold <= 6000)
+      {
+        SetDeviceCCT(6500,0);
+      }
+      else if(DEVST_WarmCold<3000)
+      {
+        SetDeviceCCT(5000,0);
+      }
+      else
+      {
+        SetDeviceCCT(2700,0);
+      }      
+    }
+  }
+}
 
 bool SayHelloToDevice(bool infinate) {
   uint8_t _count = 0;
@@ -768,6 +794,7 @@ bool SayHelloToDevice(bool infinate) {
   while(mStatus < SYS_RUNNING) {
     ////////////rfscanner process///////////////////////////////
     ProcessOutputCfgMsg(); 
+    ProcessAutoSwitchLight();
     // Save Config if Changed
     SendMyMessage();
     ResetRFModule();
@@ -984,6 +1011,8 @@ int main( void ) {
     } else {
       // Must establish connection firstly
       SayHelloToDevice(TRUE);
+      gConfig.enAutoPowerTest = 0;
+      gIsChanged = TRUE;
     }
 #endif
     //PrintDevStatus();
@@ -1904,6 +1933,13 @@ void tmrProcess() {
   {
     offdelaytick--; 
   }  
+  if(gConfig.enAutoPowerTest)
+  {
+    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+    {
+      gRunningTimeTick++;
+    }
+  }
   // Save config into backup area
    SaveBackupConfig();
 }
