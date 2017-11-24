@@ -82,6 +82,8 @@ void testio()
 // Starting Flash block number of backup config
 #define BACKUP_CONFIG_BLOCK_NUM         2
 #define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + BACKUP_CONFIG_BLOCK_NUM * FLASH_BLOCK_SIZE)
+#define STATUS_DATA_NUM                 4
+#define STATUS_DATA_ADDRESS             (FLASH_DATA_START_PHYSICAL_ADDRESS + STATUS_DATA_NUM * FLASH_BLOCK_SIZE)
 
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		100
@@ -94,7 +96,7 @@ void testio()
 
 #define NO_RESTART_MODE
 
-#define DEBUG_LOG
+//#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -128,6 +130,8 @@ void testio()
 #define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
+#define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
+uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
 
@@ -209,6 +213,41 @@ void feed_wwdg(void) {
 #endif  
 }
 
+void itoa(unsigned int n, char * buf)
+{
+        int i;
+        
+        if(n < 10)
+        {
+                buf[0] = n + '0';
+                buf[1] = '\0';
+                return;
+        }
+        itoa(n / 10, buf);
+
+        for(i=0; buf[i]!='\0'; i++);
+        
+        buf[i] = (n % 10) + '0';
+        
+        buf[i+1] = '\0';
+}
+
+void printlog(uint8_t *pBuf)
+{
+#ifdef DEBUG_LOG
+  Uart2SendString(pBuf);
+#endif
+}
+
+void printnum(unsigned int num)
+{
+#ifdef DEBUG_LOG
+  char buf[10] = {0};
+  itoa(num,buf);
+  printlog(buf);
+#endif
+}
+
 int8_t wait_flashflag_status(uint8_t flag,uint8_t status)
 {
     uint16_t timeout = 60000;
@@ -285,7 +324,12 @@ bool Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length
   uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
   for( uint16_t block = nStartBlock; block < nStartBlock + nBlockNum; block++ ) {
     memset(WriteBuf, 0x00, FLASH_BLOCK_SIZE);
-    for( uint16_t i = 0; i < FLASH_BLOCK_SIZE; i++ ) {
+    uint8_t maxLen = FLASH_BLOCK_SIZE;
+    if(block == nStartBlock + nBlockNum -1)
+    {
+      maxLen = Length - (nBlockNum -1)*FLASH_BLOCK_SIZE;
+    }
+    for( uint16_t i = 0; i < maxLen; i++ ) {
       WriteBuf[i] = Buffer[(block - nStartBlock) * FLASH_BLOCK_SIZE + i];
     }
     FLASH_ProgramBlock(block, FLASH_MEMTYPE_DATA, FLASH_PROGRAMMODE_STANDARD, WriteBuf);
@@ -344,7 +388,7 @@ void SaveStatusData()
     uint8_t pData[50] = {0};
     uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
     memcpy(pData, (uint8_t *)&gConfig, nLen);
-    if(Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1))
+    if(Flash_WriteDataBlock(STATUS_DATA_NUM, pData, nLen))
     {
       gIsStatusChanged = FALSE;
     }
@@ -357,25 +401,24 @@ void SaveStatusData()
 // Save config to Flash
 void SaveConfig()
 {
+  if( gIsStatusChanged ) {
+    // Overwrite only Static & status parameters
+    SaveStatusData();
+    gIsChanged = TRUE;
+  }
   if( gIsChanged ) {
     // Overwrite entire config FLASH
     if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
-    if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
-    {
-      gIsStatusChanged = FALSE;
-      gIsChanged = FALSE;
-      return;
+    uint8_t Attmpts = 0;
+    while(++Attmpts <= 3) {
+      if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
+      {
+        gIsStatusChanged = FALSE;
+        gIsChanged = FALSE;
+        break;
+      }
     }
-    else
-    {
-      printlog("cfg write fail");
-    }   
   }
-
-  if( gIsStatusChanged ) {
-    // Overwrite only Static & status parameters (the first part of config FLASH)
-    SaveStatusData();
-  }  
 }
 
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
@@ -398,6 +441,12 @@ void LoadConfig()
 {
   // Load the most recent settings from FLASH
   Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+  /*printnum(gConfig.version);
+  printnum(gConfig.swTimes);
+  printnum(gConfig.cntRFReset);
+  printnum(gConfig.nodeID);
+  printnum(gConfig.rfChannel);
+  printlog("\n");*/
   //gConfig.version = XLA_VERSION + 1;
   if( IsConfigInvalid() ) {
     // If config is OK, then try to load config from backup area
@@ -427,6 +476,8 @@ void LoadConfig()
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+      // default enable auto power test mode
+      gConfig.enAutoPowerTest = 1;
       //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
@@ -458,9 +509,15 @@ void LoadConfig()
     if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
   }
   
+  // Load the most recent status from FLASH
+  uint8_t pData[50] = {0};
+  uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
+  Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
+  if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
+  {
+    memcpy(&gConfig,pData,nLen);
+  }
   // Engineering Code
-  //gConfig.nodeID = BASESERVICE_ADDRESS;
-  //gConfig.swTimes = 0;
   if(gConfig.type == devtypWBlackboard)
   {
     gConfig.nodeID = 1;
@@ -599,42 +656,6 @@ void CCT2ColdWarm(uint32_t ucBright, uint32_t ucWarmCold)
   pwm_Cold = ucWarmCold*ucBright/1000 ;
 }
 
-
-void itoa(unsigned int n, char * buf)
-{
-        int i;
-        
-        if(n < 10)
-        {
-                buf[0] = n + '0';
-                buf[1] = '\0';
-                return;
-        }
-        itoa(n / 10, buf);
-
-        for(i=0; buf[i]!='\0'; i++);
-        
-        buf[i] = (n % 10) + '0';
-        
-        buf[i+1] = '\0';
-}
-
-void printlog(uint8_t *pBuf)
-{
-#ifdef DEBUG_LOG
-  Uart2SendString(pBuf);
-#endif
-}
-
-void printnum(unsigned int num)
-{
-#ifdef DEBUG_LOG
-  char buf[10] = {0};
-  itoa(num,buf);
-  printlog(buf);
-#endif
-}
-
 // Send message and switch back to receive mode
 bool SendMyMessage() {
   if( bMsgReady ) {
@@ -756,6 +777,29 @@ void PrintDevStatus()
     printlog("\r\n"); 
   }
 }
+void ProcessAutoSwitchLight()
+{
+  if(gConfig.enAutoPowerTest)
+  {
+    if(gRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
+    {// switch light cct
+      gRunningTimeTick = 0;
+      SetDeviceBrightness(100,0);
+      if(DEVST_WarmCold >=3000 && DEVST_WarmCold <= 6000)
+      {
+        SetDeviceCCT(6500,0);
+      }
+      else if(DEVST_WarmCold<3000)
+      {
+        SetDeviceCCT(5000,0);
+      }
+      else
+      {
+        SetDeviceCCT(2700,0);
+      }      
+    }
+  }
+}
 
 bool SayHelloToDevice(bool infinate) {
   uint8_t _count = 0;
@@ -768,6 +812,7 @@ bool SayHelloToDevice(bool infinate) {
   while(mStatus < SYS_RUNNING) {
     ////////////rfscanner process///////////////////////////////
     ProcessOutputCfgMsg(); 
+    ProcessAutoSwitchLight();
     // Save Config if Changed
     SendMyMessage();
     ResetRFModule();
@@ -888,7 +933,7 @@ int main( void ) {
     gConfig.enSDTM = 0;
     gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
   } else {
     gIsStatusChanged = TRUE;
   }
@@ -984,6 +1029,8 @@ int main( void ) {
     } else {
       // Must establish connection firstly
       SayHelloToDevice(TRUE);
+      gConfig.enAutoPowerTest = 0;
+      gIsChanged = TRUE;
     }
 #endif
     //PrintDevStatus();
@@ -1118,14 +1165,10 @@ int main( void ) {
       ////////////rfscanner process///////////////////////////////     
       // Send message if ready
       //printlog("SndS");
-      //PB_3High;
       SendMyMessage();
-      //PB3_Low;
       //printlog("SndE");
       // Save Config if Changed
-      //PB1_High;
       SaveConfig();
-      //PB1_Low;
       //printlog("SvgE");
       if(offdelaytick == 0)
       {
@@ -1904,6 +1947,13 @@ void tmrProcess() {
   {
     offdelaytick--; 
   }  
+  if(gConfig.enAutoPowerTest)
+  {
+    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+    {
+      gRunningTimeTick++;
+    }
+  }
   // Save config into backup area
    SaveBackupConfig();
 }
