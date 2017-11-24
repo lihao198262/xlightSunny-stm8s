@@ -82,6 +82,8 @@ void testio()
 // Starting Flash block number of backup config
 #define BACKUP_CONFIG_BLOCK_NUM         2
 #define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + BACKUP_CONFIG_BLOCK_NUM * FLASH_BLOCK_SIZE)
+#define STATUS_DATA_NUM                 4
+#define STATUS_DATA_ADDRESS             (FLASH_DATA_START_PHYSICAL_ADDRESS + STATUS_DATA_NUM * FLASH_BLOCK_SIZE)
 
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		100
@@ -386,7 +388,7 @@ void SaveStatusData()
     uint8_t pData[50] = {0};
     uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
     memcpy(pData, (uint8_t *)&gConfig, nLen);
-    if(Flash_WriteBuf(FLASH_DATA_START_PHYSICAL_ADDRESS + 1, pData + 1, nLen - 1))
+    if(Flash_WriteDataBlock(STATUS_DATA_NUM, pData, nLen))
     {
       gIsStatusChanged = FALSE;
     }
@@ -399,25 +401,24 @@ void SaveStatusData()
 // Save config to Flash
 void SaveConfig()
 {
+  if( gIsStatusChanged ) {
+    // Overwrite only Static & status parameters
+    SaveStatusData();
+    gIsChanged = TRUE;
+  }
   if( gIsChanged ) {
     // Overwrite entire config FLASH
     if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
-    if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
-    {
-      gIsStatusChanged = FALSE;
-      gIsChanged = FALSE;
-      return;
+    uint8_t Attmpts = 0;
+    while(++Attmpts <= 3) {
+      if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
+      {
+        gIsStatusChanged = FALSE;
+        gIsChanged = FALSE;
+        break;
+      }
     }
-    else
-    {
-      printlog("cfg write fail");
-    }   
   }
-
-  if( gIsStatusChanged ) {
-    // Overwrite only Static & status parameters (the first part of config FLASH)
-    SaveStatusData();
-  }  
 }
 
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
@@ -507,10 +508,16 @@ void LoadConfig()
     Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
     if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
   }
+  
+  // Load the most recent status from FLASH
+  uint8_t pData[50] = {0};
+  uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
+  Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
+  if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
+  {
+    memcpy(&gConfig,pData,nLen);
+  }
   // Engineering Code
-  //gConfig.nodeID = BASESERVICE_ADDRESS;
-  //gConfig.swTimes = 0;
-  gConfig.rfChannel = 103;
   if(gConfig.type == devtypWBlackboard)
   {
     gConfig.nodeID = 1;
@@ -926,7 +933,7 @@ int main( void ) {
     gConfig.enSDTM = 0;
     gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
-    gIsChanged = TRUE;
+    gIsStatusChanged = TRUE;
   } else {
     gIsStatusChanged = TRUE;
   }
@@ -1158,14 +1165,10 @@ int main( void ) {
       ////////////rfscanner process///////////////////////////////     
       // Send message if ready
       //printlog("SndS");
-      //PB_3High;
       SendMyMessage();
-      //PB3_Low;
       //printlog("SndE");
       // Save Config if Changed
-      //PB1_High;
       SaveConfig();
-      //PB1_Low;
       //printlog("SvgE");
       if(offdelaytick == 0)
       {
