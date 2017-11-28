@@ -67,6 +67,7 @@ void testio()
 #if defined(XSUNNY)
 #define XLA_PRODUCT_NAME          "XSunny"
 #define XLA_PRODUCT_Type          devtypWSquare60
+//#define XLA_PRODUCT_Type          devtypWBlackboard
 #endif
 /// Rainbow
 #if defined(XRAINBOW)
@@ -931,7 +932,8 @@ int main( void ) {
   if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
     gConfig.swTimes = 0;
     gConfig.enSDTM = 0;
-    gConfig.nodeID = BASESERVICE_ADDRESS;
+    //engineering code(don't need to change nodeid)
+    //gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
     gIsStatusChanged = TRUE;
   } else {
