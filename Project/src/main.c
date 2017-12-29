@@ -418,6 +418,10 @@ void SaveConfig()
         gIsChanged = FALSE;
         break;
       }
+      else
+      {
+         printlog("cfg write fail");
+      }
     }
   }
 }
@@ -995,19 +999,20 @@ int main( void ) {
     
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
-      if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
-        // Restore to previous state
-        bool preSwitch = DEVST_OnOff;
-        DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
-        SetDeviceFilter(gConfig.filter);
-        SetDeviceOnOff(preSwitch, RING_ID_ALL);
-        //delay_ms(1500);   // about 1.5 sec
-        mutex = 0;
-        WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
-      } else {
+      if( gConfig.cntRFReset >= MAX_RF_RESET_TIME ) {
         gConfig.cntRFReset = 0;
+        gIsStatusChanged = TRUE;
         printlog("rf reset");
       }
+      // Restore to previous state
+      bool preSwitch = DEVST_OnOff;
+      DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
+      SetDeviceFilter(gConfig.filter);
+      SetDeviceOnOff(preSwitch, RING_ID_ALL);
+      //delay_ms(1500);   // about 1.5 sec
+      mutex = 0;
+      WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
+      printlog("restore...");
     }
   
     // IRQ
