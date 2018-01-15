@@ -53,6 +53,8 @@
 #define SCK_LOW         GPIO_WriteLow(GPIOC, GPIO_PIN_5)
 #define SCK_HIGH        GPIO_WriteHigh(GPIOC, GPIO_PIN_5)
 
+#define SPI_TIMEOUT    60000
+
 
 //Make sure your compiler orders the bits correctly in the structs
 #pragma bitfields=reversed
@@ -206,6 +208,14 @@ void RF24L01_read_buf(uint8_t reg, uint8_t *data, uint8_t length);
 void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t length);
 void RF24L01_clear_interrupts(void);
 //void RF24L01_show_registers(void);
+
+int8_t RF24L01_send_command_timeout(uint8_t command);
+int8_t RF24L01_write_register_timeout(uint8_t register_addr, uint8_t *value, uint8_t length);
+int8_t RF24L01_set_mode_TX_timeout(void);
+int8_t RF24L01_set_mode_RX_timeout(void);
+RF24L01_reg_STATUS_content RF24L01_get_status_timeout(void);
+int8_t RF24L01_write_payload_timeout(uint8_t *data, uint8_t length);
+int8_t RF24L01_clear_interrupts_timeout(void);
 
 extern uint8_t rx_addr[ADDRESS_WIDTH];
 extern uint8_t tx_addr[ADDRESS_WIDTH];

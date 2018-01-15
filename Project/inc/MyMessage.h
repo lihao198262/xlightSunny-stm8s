@@ -36,10 +36,12 @@ typedef enum { RF24_1MBPS = 0, RF24_2MBPS, RF24_250KBPS } rf24_datarate_e;
 #define RF24_PA_LEVEL 	   	RF24_PA_MAX
 #define RF24_PA_LEVEL_NODE 	RF24_PA_LOW
 #define RF24_PA_LEVEL_GW   	RF24_PA_MAX
+/*
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		71
 // RF24_250KBPS for 250kbs, RF24_1MBPS for 1Mbps, or RF24_2MBPS for 2Mbps
 #define RF24_DATARATE 	   	RF24_1MBPS
+*/
 // This is also act as base value for sensor nodeId addresses.
 //#define RF24_BASE_RADIO_ID ((uint64_t)0x4454495400LL)
 

@@ -101,15 +101,23 @@ uint8_t ParseProtocol(){
             return 0;
           }
         }
-        gConfig.nodeID = lv_nodeID;
-        memcpy(gConfig.NetworkID, rcvMsg.payload.data, sizeof(gConfig.NetworkID));
-        gIsChanged = TRUE;
-        GotNodeID();
-        // Increase brightness to indicate ID required
-        if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
-          SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
-          Msg_DevBrightness(_sender);
-          return 1;
+        if(_isAck)
+        { // request nodeid response
+          gConfig.nodeID = lv_nodeID;
+          memcpy(gConfig.NetworkID, rcvMsg.payload.data, sizeof(gConfig.NetworkID));
+          gIsChanged = TRUE;
+          GotNodeID();
+          // Increase brightness to indicate ID required
+          if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
+            SetDeviceBrightness(DEFAULT_BRIGHTNESS + 10, RING_ID_ALL);
+            Msg_DevBrightness(_sender);
+            return 1;
+          }
+        }
+        else
+        { // change node,need register
+           gConfig.nodeID = lv_nodeID;
+           ResetNodeToRegister();
         }
       }
     } else if( _type == I_REBOOT ) {
@@ -250,14 +258,37 @@ uint8_t ParseProtocol(){
   case C_SET:
     if( (IS_MINE_SUBID(_sensor) || _specificNode) && !_isAck ) {
       if( _type == V_STATUS ) {
-        // set main lamp(ID:1) power(V_STATUS:2) on/off
-        bool _OnOff = (rcvMsg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : rcvMsg.payload.bValue == DEVICE_SW_ON);
-        SetDeviceOnOff(_OnOff, RING_ID_ALL);
-        if( _needAck ) {
-          bDelaySend = (rcvMsg.header.destination == BROADCAST_ADDRESS);
-          Msg_DevBrightness(_sender);
-          return 1;
+        uint8_t _lenPayl = miGetLength();
+        if( _lenPayl == 1)
+        { 
+          // set main lamp(ID:1) power(V_STATUS:2) on/off
+          bool _OnOff = (rcvMsg.payload.bValue == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : rcvMsg.payload.bValue == DEVICE_SW_ON);
+          SetDeviceOnOff(_OnOff, RING_ID_ALL);
+          if( _needAck ) {
+            bDelaySend = (rcvMsg.header.destination == BROADCAST_ADDRESS);
+            Msg_DevBrightness(_sender);
+            return 1;
+          }
         }
+        else if( _lenPayl == 3)
+        {
+          uint8_t _OnOff = (rcvMsg.payload.data[0] == DEVICE_SW_TOGGLE ? DEVST_OnOff == DEVICE_SW_OFF : rcvMsg.payload.bValue == DEVICE_SW_ON);
+          uint8_t unit = rcvMsg.payload.data[1];
+          uint8_t time = rcvMsg.payload.data[2];
+          if(unit == MINUTE_UNIT)
+          {
+            offdelaytick = (int32_t)time * 60 * 100; //10ms timer
+          }
+          else if(unit == HOUR_UNIT)
+          {
+            offdelaytick = (int32_t)time * 60 * 60 * 100;
+          }
+          else
+          {
+            offdelaytick = (int32_t)time * 100;
+          }
+        }
+
       } else if( _type == V_PERCENTAGE ) {
         // Get main lamp(ID:1) dimmer (V_PERCENTAGE:3)
         uint8_t _Brightness;
@@ -265,14 +296,26 @@ uint8_t ParseProtocol(){
         if( miGetLength() == 2 ) {
           switch( rcvMsg.payload.data[0] ) {
           case OPERATOR_ADD:
-            _Brightness = DEVST_Bright + rcvMsg.payload.data[1];
-            if( _Brightness > 100 ) _Brightness = 100;
+              _Brightness = DEVST_Bright + rcvMsg.payload.data[1];
+              if( _Brightness > 100 ) _Brightness = 100;
+              if(_sender == NODEID_MIN_REMOTE && rcvMsg.header.destination == BROADCAST_ADDRESS)
+              { // remote broadcast msg for power test
+                if( _Brightness%10 !=0 && _Brightness/10 >= 3 ) _Brightness = 50;
+              }
+
             break;
           case OPERATOR_SUB:
             if(DEVST_Bright > rcvMsg.payload.data[1] + BR_MIN_VALUE) {
               _Brightness = DEVST_Bright - rcvMsg.payload.data[1];
             } else {
-              _Brightness = BR_MIN_VALUE;
+              if(_sender == NODEID_MIN_REMOTE && rcvMsg.header.destination == BROADCAST_ADDRESS)
+              { // remote broadcast msg for power test
+                _Brightness = 5;
+              }
+              else
+              {
+                _Brightness = BR_MIN_VALUE;
+              }
             }
             break;
           default:      // OPERATOR_SET
@@ -613,7 +656,7 @@ void MsgScanner_ProbeAck() {
   sndMsg.payload.data[payl_len++] = gConfig.nodeID;
   sndMsg.payload.data[payl_len++] = gConfig.subID;
   sndMsg.payload.data[payl_len++] = gConfig.rfChannel;
-  sndMsg.payload.data[payl_len++] = gConfig.rfDataRate << 2 + gConfig.rfPowerLevel;
+  sndMsg.payload.data[payl_len++] = (gConfig.rfDataRate << 2) + gConfig.rfPowerLevel;
   memcpy(sndMsg.payload.data + payl_len, gConfig.NetworkID, sizeof(gConfig.NetworkID));
   payl_len += sizeof(gConfig.NetworkID);
   
@@ -680,6 +723,10 @@ void Process_SetDevConfig(u8 _len) {
     memcpy((void *)((uint16_t)(&gConfig) + offset),rcvMsg.payload.data+2+UNIQUE_ID_LEN,_len);
     gIsChanged = TRUE;
 }
+bool IsNodeidValid(uint8_t nodeid)
+{
+  return !(IS_NOT_DEVICE_NODEID(nodeid) && !IS_GROUP_NODEID(nodeid));
+}
 //////set rf /////////////////////////////////////////////////
 //typedef struct
 //{
@@ -695,6 +742,7 @@ void Process_SetDevConfig(u8 _len) {
 //////set rf /////////////////////////////////////////////////
 void Process_SetupRF(const UC *rfData,uint8_t rflen)
 {
+  bool bNeedChangeCfg = FALSE;
   if(rflen > 0 &&(*rfData)>=0 && (*rfData)<=127)
   {
     if(gConfig.rfChannel != (*rfData))
@@ -722,9 +770,10 @@ void Process_SetupRF(const UC *rfData,uint8_t rflen)
     } 
   }
   rfData++;
+  bool bValidNet = FALSE;
+  bool newNetwork[6] = {0};
   if(rflen > 8)
-  {
-    bool bValidNet = FALSE;
+  {  
     for(uint8_t i = 0;i<6;i++)
     {
       if(*(rfData+i) != 0)
@@ -733,26 +782,50 @@ void Process_SetupRF(const UC *rfData,uint8_t rflen)
         break;
       }
     }
-    if(!isIdentityEqual(rfData,gConfig.NetworkID,sizeof(gConfig.NetworkID))&&bValidNet)
+    if(isIdentityEqual(rfData,gConfig.NetworkID,sizeof(gConfig.NetworkID)))
     {
-      memcpy(gConfig.NetworkID,rfData,sizeof(gConfig.NetworkID));
-      gResetRF = TRUE;
+      bValidNet=FALSE;
+    }
+    else
+    {
+      memcpy(newNetwork,rfData,sizeof(newNetwork));
     }
   }
   rfData = rfData + sizeof(gConfig.NetworkID);
+  bool bNeedResetNode = FALSE;
   if(rflen > 9 && (* rfData) != 0)
+  {
     if(gConfig.nodeID != (* rfData))
     {
-      gConfig.nodeID = (* rfData);
-      gResetNode=TRUE;
+      if(IsNodeidValid(*rfData))
+      {
+        gConfig.nodeID = (* rfData);
+        bNeedResetNode = TRUE;
+      }    
     }
+  }
   rfData++; 
-  if(rflen > 10 && (* rfData) != 0)
+  if(rflen > 10)
   {
     if(gConfig.subID != (* rfData ))
     {
       gConfig.subID = (*rfData);
+      bNeedChangeCfg = TRUE;
     }
+  }
+  if(bValidNet)
+  {// nodeid is valid,allow change networkid
+    if(IsNodeidValid(gConfig.nodeID))
+    {
+      memcpy(gConfig.NetworkID,newNetwork,sizeof(gConfig.NetworkID));
+      bNeedResetNode = TRUE;
+    }
+  }
+  if(bNeedResetNode)
+    gResetNode = TRUE;
+  if(gResetNode || gResetRF || bNeedChangeCfg)
+  {
+    gIsChanged = TRUE;
   }
 }
 //----------------------------------------------

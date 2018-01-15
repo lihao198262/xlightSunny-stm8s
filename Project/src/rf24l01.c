@@ -2,9 +2,21 @@
 #include "MyMessage.h"
 #include <stm8s_spi.h>
 #include <stm8s_gpio.h>
-
+#include "_global.h"
 uint8_t rx_addr[ADDRESS_WIDTH];
 uint8_t tx_addr[ADDRESS_WIDTH];
+
+int8_t wait_flag_status(uint8_t flag,uint8_t status)
+{
+    uint16_t timeout = SPI_TIMEOUT;
+    while( SPI_GetFlagStatus(flag)== status && timeout--);
+    if(!timeout) 
+    {
+      Uart2SendString("timeout");
+      return 1;
+    }
+    return 0;
+}
 
 void RF24L01_init(void) {
   //Chip Select
@@ -85,17 +97,28 @@ bool NRF24L01_Check(void)
 
 void RF24L01_send_command(uint8_t command) {
   //Chip select
+
   CSN_LOW;
-  
   //Send command
   while (SPI_GetFlagStatus(SPI_FLAG_TXE)== RESET);
   SPI_SendData(command);
   while (SPI_GetFlagStatus(SPI_FLAG_BSY)== SET);
   while (SPI_GetFlagStatus(SPI_FLAG_RXNE)== RESET);
   SPI_ReceiveData();
-  
-  //Chip select
   CSN_HIGH;
+}
+
+int8_t RF24L01_send_command_timeout(uint8_t command) {
+	//Chip select
+	CSN_LOW;
+	//Send command
+	if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+	SPI_SendData(command);
+	if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+	if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+	SPI_ReceiveData();
+	CSN_HIGH;
+	return 0;
 }
 
 uint8_t RF24L01_read_register(uint8_t register_addr) {
@@ -123,6 +146,31 @@ uint8_t RF24L01_read_register(uint8_t register_addr) {
   return result;
 }
 
+/*int8_t RF24L01_read_register_timeout(uint8_t register_addr) {
+	uint8_t result;
+	//Chip select
+	CSN_LOW;
+	
+	//Send address and read command
+	if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+	SPI_SendData(RF24L01_command_R_REGISTER | register_addr);
+	if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+	if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+	SPI_ReceiveData();
+	
+	//Get data
+	if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+	SPI_SendData(0x00);
+	if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+	if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+	result = SPI_ReceiveData();
+	
+	//Chip select
+	CSN_HIGH;
+	
+	return result;
+}*/
+
 void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t length) {
   //Chip select
   CSN_LOW;
@@ -145,6 +193,31 @@ void RF24L01_write_register(uint8_t register_addr, uint8_t *value, uint8_t lengt
   
   //Chip select
   CSN_HIGH;
+}
+
+int8_t RF24L01_write_register_timeout(uint8_t register_addr, uint8_t *value, uint8_t length) {
+	//Chip select
+	CSN_LOW;
+	
+	//Send address and write command
+	if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+	SPI_SendData(RF24L01_command_W_REGISTER | register_addr);
+	if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+	if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+	SPI_ReceiveData();
+
+	//Send data  
+	for (uint8_t i=0; i<length; i++) {
+		if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+		SPI_SendData(value[i]);
+		if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+		if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+		SPI_ReceiveData();
+	}
+	
+	//Chip select
+	CSN_HIGH;
+	return 0;
 }
 
 void RF24L01_setup(uint8_t channel, uint8_t datarate, uint8_t powerlevel, uint8_t boardcast) {
@@ -209,7 +282,7 @@ void RF24L01_setup(uint8_t channel, uint8_t datarate, uint8_t powerlevel, uint8_
     RF_SETUP.RF_DR_LOW = 0x00;
     RF_SETUP.RF_DR_HIGH = 0x00;
   }
-  RF_SETUP.LNA_HCURR = 0x01;
+  //RF_SETUP.LNA_HCURR = 0x01;
   RF24L01_write_register(RF24L01_reg_RF_SETUP, ((uint8_t *)&RF_SETUP), 1);
   
   RF24L01_reg_CONFIG_content config;
@@ -244,7 +317,9 @@ void RF24L01_setup(uint8_t channel, uint8_t datarate, uint8_t powerlevel, uint8_
 }
 
 void RF24L01_set_mode_TX(void) {
+
   RF24L01_send_command(RF24L01_command_FLUSH_TX);
+
   RF24L01_send_command(RF24L01_command_FLUSH_RX);
   CE_LOW;
 
@@ -263,6 +338,31 @@ void RF24L01_set_mode_TX(void) {
   RF24L01_write_register(RF24L01_reg_RX_ADDR_P0, tx_addr, ADDRESS_WIDTH);
   RF24L01_write_register(RF24L01_reg_TX_ADDR, tx_addr, ADDRESS_WIDTH);  
 }
+
+int8_t RF24L01_set_mode_TX_timeout(void) {
+
+	if(RF24L01_send_command_timeout(RF24L01_command_FLUSH_TX) == -1) return -1;
+
+	if(RF24L01_send_command_timeout(RF24L01_command_FLUSH_RX) == -1) return -1;
+	CE_LOW;
+
+	RF24L01_reg_CONFIG_content config;
+	*((uint8_t *)&config) = 0;
+	config.PWR_UP = 1;
+	config.PRIM_RX = 0;
+	config.EN_CRC = 1;
+	config.CRCO = 1;
+	config.MASK_MAX_RT = 0;
+	config.MASK_TX_DS = 0;
+	config.MASK_RX_DR = 0;
+	if(RF24L01_write_register_timeout(RF24L01_reg_CONFIG, ((uint8_t *)&config), 1) == -1) return -1;
+	
+	// Restore the pipe0 adddress
+	if(RF24L01_write_register_timeout(RF24L01_reg_RX_ADDR_P0, tx_addr, ADDRESS_WIDTH) == -1) return -1;
+	if(RF24L01_write_register_timeout(RF24L01_reg_TX_ADDR, tx_addr, ADDRESS_WIDTH) == -1) return -1;
+	return 0;
+}
+
 
 void RF24L01_set_mode_RX(void) {
   RF24L01_reg_CONFIG_content config;
@@ -287,6 +387,30 @@ void RF24L01_set_mode_RX(void) {
   CE_HIGH; //CE -> High
 }
 
+int8_t RF24L01_set_mode_RX_timeout(void) {
+	RF24L01_reg_CONFIG_content config;
+	*((uint8_t *)&config) = 0;
+	config.PWR_UP = 1;
+	config.PRIM_RX = 1;
+	config.EN_CRC = 1;
+	config.CRCO = 1;
+	config.MASK_MAX_RT = 0;
+	config.MASK_TX_DS = 0;
+	config.MASK_RX_DR = 0;
+	if(RF24L01_write_register_timeout(RF24L01_reg_CONFIG, ((uint8_t *)&config), 1) == -1) return -1;
+
+	// Restore the pipe0 adddress
+	if(RF24L01_write_register_timeout(RF24L01_reg_RX_ADDR_P0, rx_addr, ADDRESS_WIDTH) == -1) return -1;
+	
+	// Clear the status register to discard any data in the buffers
+	if(RF24L01_clear_interrupts_timeout() == -1) return -1;
+	if(RF24L01_send_command_timeout(RF24L01_command_FLUSH_RX)== -1) return -1;
+	if(RF24L01_send_command_timeout(RF24L01_command_FLUSH_TX)== -1) return -1;
+	
+	CE_HIGH; //CE -> High
+	return 0;
+}
+
 RF24L01_reg_STATUS_content RF24L01_get_status(void) {
   uint8_t status;
   //Chip select
@@ -303,6 +427,37 @@ RF24L01_reg_STATUS_content RF24L01_get_status(void) {
   CSN_HIGH;
 
   return *((RF24L01_reg_STATUS_content *) &status);
+}
+
+RF24L01_reg_STATUS_content RF24L01_get_status_timeout(void) {
+	uint8_t status;
+	//Chip select
+	CSN_LOW;
+	
+	//Send address and command
+	if(wait_flag_status(SPI_FLAG_TXE,RESET))
+	{
+		status = 1;
+		return *((RF24L01_reg_STATUS_content *) &status);
+	}
+	while (SPI_GetFlagStatus(SPI_FLAG_TXE)== RESET);
+	SPI_SendData(RF24L01_command_NOP);
+	if(wait_flag_status(SPI_FLAG_BSY,SET))
+	{
+		status = 1;
+		return *((RF24L01_reg_STATUS_content *) &status);
+	}
+	if(wait_flag_status(SPI_FLAG_RXNE,RESET))
+	{
+		status = 1;
+		return *((RF24L01_reg_STATUS_content *) &status);
+	}
+	status = SPI_ReceiveData();
+	
+	//Chip select
+	CSN_HIGH;
+
+	return *((RF24L01_reg_STATUS_content *) &status);
 }
 
 void RF24L01_write_payload(uint8_t *data, uint8_t length) {
@@ -343,6 +498,53 @@ void RF24L01_write_payload(uint8_t *data, uint8_t length) {
   uint16_t delay = 0xFF;
   while(delay--);
   CE_LOW;
+}
+
+int8_t RF24L01_write_payload_timeout(uint8_t *data, uint8_t length) {
+	RF24L01_reg_STATUS_content a;
+	a = RF24L01_get_status_timeout();
+	if(a.reserved == 1)
+	{
+		// RF24L01_get_status timeout
+		return -1;
+	}
+	if (a.MAX_RT == 1) {
+		//If MAX_RT, clears it so we can send data
+		*((uint8_t *) &a) = 0;
+		a.TX_DS = 1;
+		if(RF24L01_write_register_timeout(RF24L01_reg_STATUS, (uint8_t *) &a, 1) == -1)
+		{
+			return -1;
+		}
+	}
+	
+	uint8_t i;
+	//Chip select
+	CSN_LOW;
+	
+	//Send address and command
+	if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+	SPI_SendData(RF24L01_command_W_TX_PAYLOAD);
+	if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+	if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+	SPI_ReceiveData();
+
+	//Send data
+	for (i=0; i<length; i++) {
+		if(wait_flag_status(SPI_FLAG_TXE,RESET)) return -1;
+		SPI_SendData(data[i]);
+		if(wait_flag_status(SPI_FLAG_BSY,SET)) return -1;
+		if(wait_flag_status(SPI_FLAG_RXNE,RESET)) return -1;
+		SPI_ReceiveData();
+	}
+	//Chip select
+	CSN_HIGH;	
+	//Generates an impulsion for CE to send the data
+	CE_HIGH;
+	uint16_t delay = 0xFF;
+	while(delay--);
+	CE_LOW;
+	return 0;
 }
 
 void RF24L01_read_payload(uint8_t *data, uint8_t length) {
@@ -386,7 +588,7 @@ void RF24L01_read_buf(uint8_t reg, uint8_t *data, uint8_t length) {
 
   //Get data
   for (i=0; i<length; i++) {
-    while (SPI_GetFlagStatus(SPI_FLAG_TXE)== RESET);
+    while (SPI_GetFlagStatus(SPI_FLAG_TXE)== RESET );
     SPI_SendData(0x00);
     while (SPI_GetFlagStatus(SPI_FLAG_BSY)== SET);
     *(data++) = SPI_ReceiveData();
@@ -435,6 +637,24 @@ void RF24L01_clear_interrupts(void) {
   a.MAX_RT = 1;
   a.TX_DS = 1;
   RF24L01_write_register(RF24L01_reg_STATUS, (uint8_t *)&a, 1);
+}
+
+int8_t RF24L01_clear_interrupts_timeout(void) {
+	/*
+	RF24L01_reg_STATUS_content a;
+	 a = RF24L01_get_status();
+	 a.MAX_RT = 1;
+	 a.RX_DR = 1;
+	 a.TX_DS = 1;
+	RF24L01_write_register(RF24L01_reg_STATUS, (uint8_t*)&a, 1);
+	*/
+	RF24L01_reg_STATUS_content a;
+	*((uint8_t *) &a) = 0;
+	a.RX_DR = 1;
+	a.MAX_RT = 1;
+	a.TX_DS = 1;
+	if(RF24L01_write_register_timeout(RF24L01_reg_STATUS, (uint8_t *)&a, 1) == -1) return -1;
+	return 0;
 }
 
 /*

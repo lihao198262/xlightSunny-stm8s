@@ -108,13 +108,27 @@
 #define CCT_STEP                50
 #define RGB_STEP                3
 
+// WATT regulation method
+/// Option 0: no restriction
+/// Option 1: percentage
+/// Option 2: percentage + linear
+/// Option 3: percentage + quadratic
+/// Option 4: percentage + cubic function
+/// Option 10: percentage + table
+#define WATT_RM_NO_RESTRICTION          0
+#define WATT_RM_PERCENTAGE              1
+#define WATT_RM_LINEAR_PERCENTAGE       2
+#define WATT_RM_QUADRATIC_PERCENTAGE    3
+#define WATT_RM_CUBIC_PERCENTAGE        4
+#define WATT_RM_TABLE_PERCENTAGE        10
+
 // Keep alive message interval, around 6 seconds
 #define RTE_TM_KEEP_ALIVE               500    // about 5s (500 * 10ms)
 #define MAX_RF_FAILED_TIME              8      // Reset RF module when reach max failed times of sending
 #define MAX_RF_RESET_TIME               3      // Reset Node when reach max times of RF module consecutive reset
 
 // Whether allow individual color control of ring
-/// Uncomment this line only if hardware supports
+/// Uncomment this line only if h       ardware supports
 //#define RING_INDIVIDUAL_COLOR
 
 // Device (lamp) type
@@ -211,7 +225,9 @@ typedef struct
   UC hasSiblingMCU            :1;           // Whether sibling MCU presents
   UC type;                                  // Type of lamp
   US token;
-  UC reserved1                :8;
+  UC wattOption               :4;           // 0..15, ref to WATT regulation method
+  UC enAutoPowerTest          :1;           // power auto test mode
+  UC reserved1                :3;
   US senMap                   :16;          // Sensor Map
   US funcMap                  :16;          // Function Map
   UC alsLevel[2];
@@ -243,7 +259,7 @@ typedef struct
   UC alsLevel[2];
   UC pirLevel[2];
   UC cntRFReset               :4;           // RF reset count
-  UC reserved1                :4;
+  UC wattOption               :4;           // 0..15, ref to WATT regulation method
   UC rfChannel;                             // RF Channel: [0..127]
 } Config_t;
 #endif
@@ -255,6 +271,9 @@ extern bool gIsStatusChanged;
 extern bool gResetRF;
 extern bool gResetNode;
 extern uint8_t _uniqueID[UNIQUE_ID_LEN];
+// off delay tick
+extern int32_t offdelaytick;
+
 
 bool isIdentityEqual(const UC *pId1, const UC *pId2, UC nLen);
 void GotNodeID();
@@ -270,6 +289,12 @@ bool SetDeviceFilter(uint8_t _filter);
 void tmrProcess();
 void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
+void ResetNodeToRegister();
+void printlog(uint8_t *pBuf);
+
+#define SECOND_UNIT  1
+#define MINUTE_UNIT  2
+#define HOUR_UNIT    3
 
 // All rings or the first ring
 #define DEVST_OnOff             gConfig.ring[0].State
@@ -306,5 +331,30 @@ void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 #define IS_NOT_DEVICE_NODEID(nID)  ((nID < NODEID_MIN_DEVCIE || nID > NODEID_MAX_DEVCIE) && nID != NODEID_MAINDEVICE)
 #define IS_NOT_REMOTE_NODEID(nID)  (nID < NODEID_MIN_REMOTE || nID > NODEID_MAX_REMOTE)
 #define IS_MINE_SUBID(nSID)        ((nSID) == 0 || ((nSID) & gConfig.subID))
+
+//#define TEST
+
+#ifdef TEST
+#define     PB5_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_5)
+#define     PB4_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_4)
+#define     PB3_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_3)
+#define     PB2_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_2)
+#define     PB1_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_1)
+#define     PB0_Low                GPIO_WriteLow(GPIOB , GPIO_PIN_0)
+#define     PD1_Low                GPIO_WriteLow(GPIOD , GPIO_PIN_1)
+#define     PD2_Low                GPIO_WriteLow(GPIOD , GPIO_PIN_2)
+#define     PD7_Low                GPIO_WriteLow(GPIOD , GPIO_PIN_7)
+#define     PC1_Low                GPIO_WriteLow(GPIOC , GPIO_PIN_1)
+#define     PB5_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_5)
+#define     PB4_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_4)
+#define     PB3_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_3)
+#define     PB2_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_2)
+#define     PB1_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_1)
+#define     PB0_High                GPIO_WriteHigh(GPIOB , GPIO_PIN_0)
+#define     PD1_High                GPIO_WriteHigh(GPIOD , GPIO_PIN_1)
+#define     PD2_High                GPIO_WriteHigh(GPIOD , GPIO_PIN_2)
+#define     PD7_High                GPIO_WriteHigh(GPIOD , GPIO_PIN_7)
+#define     PC1_High                GPIO_WriteHigh(GPIOC , GPIO_PIN_1)
+#endif
 
 #endif /* __GLOBAL_H */

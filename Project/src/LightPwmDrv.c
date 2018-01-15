@@ -11,26 +11,33 @@
 #include "LightPwmDrv.h"
 #include "_global.h"
 
+// PWM Frequency: default 10K
+#define PWM_FREQUENCY_1K
+
 // WATT regulation method
-/// Option 0: no restriction
-/// Option 1: percentage
-/// Option 2: percentage + linear
-/// Option 3: percentage + quadratic
-/// Option 4: percentage + cubic function
-/// Option 10: percentage + table
-u8 WATT_REGULATION_OPTION = 0;
+#define WATT_REGULATION_OPTION          (gConfig.wattOption)
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
 #define WATT_COLD_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 #define WATT_WARM_PERCENTAGE            ((uint16_t)100)                  // 50 to 100
 
-#define WATT_W_PERCENTAGE               ((uint16_t)80)                  // 50 to 100
-#define WATT_R_PERCENTAGE               ((uint16_t)75)                  // 50 to 100
-#define WATT_G_PERCENTAGE               ((uint16_t)70)                  // 50 to 100
-#define WATT_B_PERCENTAGE               ((uint16_t)65)                  // 50 to 100
+#define WATT_W_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_R_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_G_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
+#define WATT_B_PERCENTAGE               ((uint16_t)100)                  // 50 to 100
 
 /* Private macro -------------------------------------------------------------*/
+#ifdef PWM_FREQUENCY_1K
+// 1K
+#define TIM2_PWM_PERIOD         1999
+#define TIM2_PWM_PULSE          2000
+#else
+// 10K
+#define TIM2_PWM_PERIOD         199
+#define TIM2_PWM_PULSE          200
+#endif
+
 /* Private variables ---------------------------------------------------------*/
 
 #if defined(XSUNNY)
@@ -41,10 +48,6 @@ u8 WATT_REGULATION_OPTION = 0;
 // T2-C2 Warm White
 #define WARM_LIGHT_PWM_PIN_PORT         GPIOD
 #define WARM_LIGHT_PWM_PIN_ID           GPIO_PIN_3
-
-#define TIM2_PWM_PERIOD         199
-#define TIM2_PWM_PULSE          200   // 10K
-//#define TIM2_PWM_PULSE          2000    // 1K
 
 #endif
 
@@ -65,9 +68,6 @@ u8 WATT_REGULATION_OPTION = 0;
 #define B_LIGHT_PWM_PIN_PORT         GPIOD
 #define B_LIGHT_PWM_PIN_ID           GPIO_PIN_0
 
-#define TIM2_PWM_PERIOD         254
-#define TIM2_PWM_PULSE          200     // 10K
-//#define TIM2_PWM_PULSE          2000    // 1K
 #endif
 
 /**
@@ -144,16 +144,16 @@ static void TIM2PWMFunction_Config(void)
   TIM2_TimeBaseInit(TIM2_PRESCALER_8, TIM2_PWM_PERIOD);
   TIM3_TimeBaseInit(TIM3_PRESCALER_8, TIM2_PWM_PERIOD);
 
-  TIM2_OC1Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE, TIM2_OCPOLARITY_HIGH);
+  TIM2_OC1Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE / 2, TIM2_OCPOLARITY_HIGH);
   TIM2_OC1PreloadConfig(ENABLE);
 
-  TIM2_OC2Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE, TIM2_OCPOLARITY_HIGH);
+  TIM2_OC2Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE / 2, TIM2_OCPOLARITY_HIGH);
   TIM2_OC2PreloadConfig(ENABLE);
 
-  TIM3_OC1Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE, TIM3_OCPOLARITY_HIGH);
+  TIM3_OC1Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE / 2, TIM3_OCPOLARITY_HIGH);
   TIM3_OC1PreloadConfig(ENABLE);
 
-  TIM3_OC2Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE, TIM3_OCPOLARITY_HIGH);
+  TIM3_OC2Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, TIM2_PWM_PULSE / 2, TIM3_OCPOLARITY_HIGH);
   TIM3_OC2PreloadConfig(ENABLE);
   
   /* TIM2 Main Output Enable */
@@ -276,25 +276,25 @@ unsigned char getColdLightCompensator(unsigned char ucPercent)
   
   ucComp = nPercentage;
   
-  if( WATT_REGULATION_OPTION == 0 ) {
+  if( WATT_REGULATION_OPTION == WATT_RM_NO_RESTRICTION ) {
     ucComp = ucPercent;
-  } else if( WATT_REGULATION_OPTION == 1 ) {
+  } else if( WATT_REGULATION_OPTION == WATT_RM_PERCENTAGE ) {
     ucComp = nPercentage;
-  } else if( WATT_REGULATION_OPTION < 10 ) {
+  } else if( WATT_REGULATION_OPTION < WATT_RM_TABLE_PERCENTAGE ) {
     u16 nTemp;
     if( ucPercent > 50 ) nTemp = 100 - ucPercent;
     else nTemp = ucPercent;
 
-    if( WATT_REGULATION_OPTION == 2 ) {
+    if( WATT_REGULATION_OPTION == WATT_RM_LINEAR_PERCENTAGE ) {
       // Linear
       ucComp = nTemp * (100 - WATT_COLD_PERCENTAGE) / 60 + nPercentage;
-    } else if( WATT_REGULATION_OPTION == 3 ) {
+    } else if( WATT_REGULATION_OPTION == WATT_RM_QUADRATIC_PERCENTAGE ) {
       // Quadratic
       ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 + nPercentage;
-    } else if( WATT_REGULATION_OPTION == 4 ) {
+    } else if( WATT_REGULATION_OPTION == WATT_RM_CUBIC_PERCENTAGE ) {
       ucComp = nTemp * nTemp / 50 * (100 - WATT_COLD_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
     }
-  } else if( WATT_REGULATION_OPTION == 10 ) {
+  } else if( WATT_REGULATION_OPTION == WATT_RM_TABLE_PERCENTAGE ) {
     // Lookup table
     for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
       if( ucPercent <= cw_Table[i].percent ) {
@@ -313,24 +313,24 @@ unsigned char getWarmLightCompensator(unsigned char ucPercent)
   u16 nPercentage = (u16)ucPercent * WATT_WARM_PERCENTAGE / 100;
   
   ucComp = nPercentage;
-  if( WATT_REGULATION_OPTION == 0 ) {
+  if( WATT_REGULATION_OPTION == WATT_RM_NO_RESTRICTION ) {
     ucComp = ucPercent;
-  } else if( WATT_REGULATION_OPTION == 1 ) {
+  } else if( WATT_REGULATION_OPTION == WATT_RM_PERCENTAGE ) {
     ucComp = nPercentage;
-  } else if( WATT_REGULATION_OPTION < 10 ) {
+  } else if( WATT_REGULATION_OPTION < WATT_RM_TABLE_PERCENTAGE ) {
     u16 nTemp;
     if( ucPercent > 50 ) nTemp = 100 - ucPercent;
     else nTemp = ucPercent;
-    if( WATT_REGULATION_OPTION == 2 ) {
+    if( WATT_REGULATION_OPTION == WATT_RM_LINEAR_PERCENTAGE ) {
       // Linear
       ucComp = nTemp * (100 - WATT_WARM_PERCENTAGE) / 60 + nPercentage;
-    } else if( WATT_REGULATION_OPTION == 3 ) {
+    } else if( WATT_REGULATION_OPTION == WATT_RM_QUADRATIC_PERCENTAGE ) {
       // Quadratic
       ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 + nPercentage;
-    } else if( WATT_REGULATION_OPTION == 4 ) {
+    } else if( WATT_REGULATION_OPTION == WATT_RM_CUBIC_PERCENTAGE ) {
       ucComp = nTemp * nTemp / 50 * (100 - WATT_WARM_PERCENTAGE) / 50 * nTemp / 50 + nPercentage;
     }
-  } else if( WATT_REGULATION_OPTION == 10 ) {
+  } else if( WATT_REGULATION_OPTION == WATT_RM_TABLE_PERCENTAGE ) {
     // Lookup table
     for( uint8_t i = 0; i < CCT_TABLE_ROWS; i++ ) {
       if( ucPercent <= ww_Table[i].percent ) {
@@ -351,9 +351,12 @@ void regulateColdLightPulseWidth (unsigned char ucPercent)
   //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / ucPercent;
   ucPercent = getColdLightCompensator(ucPercent);
     
+  // Percentage to Pulse Width
+  uint16_t usPulseWidth = ucPercent * (TIM2_PWM_PULSE / 100);
+
   //TIM2_CtrlPWMOutputs(DISABLE);
   //TIM2_Cmd(DISABLE);
-  TIM2_OC1Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, ucPercent * 2, TIM2_OCPOLARITY_HIGH);
+  TIM2_OC1Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, usPulseWidth, TIM2_OCPOLARITY_HIGH);
   //TIM2_OC1PreloadConfig(ENABLE);
   //TIM2_CtrlPWMOutputs(ENABLE);
   //TIM2_Cmd(ENABLE);
@@ -365,14 +368,13 @@ void regulateWarmLightPulseWidth (unsigned char ucPercent)
   if (ucPercent > 100)
     ucPercent = 100;
   ucPercent = getWarmLightCompensator(ucPercent);
-  
-  //pulseWidth = ucPercent * 2;
-  //pulseWidth = 100 * (TIM2_PWM_PERIOD + 1) / pulseWidth;
-  
+
+  // Percentage to Pulse Width
+  uint16_t usPulseWidth = ucPercent * (TIM2_PWM_PULSE / 100);
   
   //TIM2_CtrlPWMOutputs(DISABLE);
   //TIM2_Cmd(DISABLE);
-  TIM2_OC2Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, ucPercent * 2, TIM2_OCPOLARITY_HIGH);  
+  TIM2_OC2Init(TIM2_OCMODE_PWM1, TIM2_OUTPUTSTATE_ENABLE, usPulseWidth, TIM2_OCPOLARITY_HIGH);  
   //TIM2_OC2PreloadConfig(ENABLE);
   //TIM2_CtrlPWMOutputs(ENABLE);
   //TIM2_Cmd(ENABLE);
@@ -388,7 +390,7 @@ void driveColdWarmLightPwm (unsigned char ucCold, unsigned char ucWarm)
 }
 
 #if defined(XRAINBOW) || defined(XMIRAGE)
-void RGBWCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WValue)
+void RGBWCtrl(uint16_t RValue, uint16_t GValue, uint16_t BValue, uint16_t WValue)
 {
   TIM2_SetCompare1(WValue);
   TIM2_SetCompare2(RValue);
@@ -400,7 +402,7 @@ void RGBWCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WValue)
   //TIM3_OC2Init(TIM3_OCMODE_PWM1, TIM3_OUTPUTSTATE_ENABLE, BValue, TIM3_OCPOLARITY_HIGH);
 }
 
-void RGBCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue)
+void RGBCtrl(uint16_t RValue, uint16_t GValue, uint16_t BValue)
 {
   TIM2_SetCompare2(RValue);
   TIM3_SetCompare1(GValue);
@@ -421,15 +423,23 @@ void LightRGBWBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t WVa
   GValue = GValue * 80 / 255;
   BValue = BValue * 80 / 255;
   WValue = WValue * 80 / 255;
+  
+  RValue = RValue * WATT_R_PERCENTAGE / 100 * BRPercent / 100;
+  GValue = GValue * WATT_G_PERCENTAGE / 100 * BRPercent / 100;
+  BValue = BValue * WATT_B_PERCENTAGE / 100 * BRPercent / 100;
+  WValue = WValue * WATT_W_PERCENTAGE / 100 * BRPercent / 100;
   */
   
-  RValue = RValue * WATT_W_PERCENTAGE / 100 * BRPercent / 100;
-  GValue = GValue * WATT_R_PERCENTAGE / 100 * BRPercent / 100;
-  BValue = BValue * WATT_G_PERCENTAGE / 100 * BRPercent / 100;
-  WValue = WValue * WATT_B_PERCENTAGE / 100 * BRPercent / 100;
+  // Percentage to Pulse Width
+  uint32_t usPW_Scale = BRPercent * (TIM2_PWM_PULSE / 100);
+  uint16_t usPW_R = RValue * WATT_R_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_G = GValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_B = BValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_W = WValue * WATT_W_PERCENTAGE / 100 * usPW_Scale / 255;
+  
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
-  RGBWCtrl(RValue, GValue, BValue, WValue);
+  RGBWCtrl(usPW_R, usPW_G, usPW_B, usPW_W);
 #endif
 }
 
@@ -442,14 +452,20 @@ void LightRGBBRCtrl(uint8_t RValue, uint8_t GValue, uint8_t BValue, uint8_t BRPe
   RValue = RValue * 80 / 255;
   GValue = GValue * 80 / 255;
   BValue = BValue * 80 / 255;
-  */
   
   RValue = RValue * WATT_R_PERCENTAGE / 100 * BRPercent / 100;
   GValue = GValue * WATT_G_PERCENTAGE / 100 * BRPercent / 100;
   BValue = BValue * WATT_B_PERCENTAGE / 100 * BRPercent / 100;
+  */
+
+  // Percentage to Pulse Width
+  uint16_t usPW_Scale = BRPercent * (TIM2_PWM_PULSE / 100);
+  uint16_t usPW_R = RValue * WATT_R_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_G = GValue * WATT_G_PERCENTAGE / 100 * usPW_Scale / 255;
+  uint16_t usPW_B = BValue * WATT_B_PERCENTAGE / 100 * usPW_Scale / 255;
   
 #if defined(XRAINBOW) || defined(XMIRAGE)
-  RGBCtrl(RValue, GValue, BValue);
+  RGBCtrl(usPW_R, usPW_G, usPW_B);
 #endif
 }
 
