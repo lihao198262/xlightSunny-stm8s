@@ -66,8 +66,8 @@ void testio()
 /// Sunny
 #if defined(XSUNNY)
 #define XLA_PRODUCT_NAME          "XSunny"
-#define XLA_PRODUCT_Type          devtypWSquare60
-//#define XLA_PRODUCT_Type          devtypWBlackboard
+//#define XLA_PRODUCT_Type          devtypWSquare60
+#define XLA_PRODUCT_Type          devtypWBlackboard
 #endif
 /// Rainbow
 #if defined(XRAINBOW)
@@ -132,6 +132,7 @@ void testio()
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
 #define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
+#define SUNNY_RUNNING_MAXTIME           360000*4  //4hours for max continuous running
 uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
@@ -898,6 +899,19 @@ bool SayHelloToDevice(bool infinate) {
   return TRUE;
 }
 
+void RestartCheck()
+{
+#ifdef XSUNNY
+  if(pwm_Cold == 0 && pwm_Warm == 0)
+  {
+    if(!gIsStatusChanged && gRunningTimeTick >= SUNNY_RUNNING_MAXTIME)
+    {
+      WWDG->CR = 0x80;
+    }
+  }
+#endif
+}
+
 int main( void ) {
   uint8_t lv_Brightness;
 
@@ -1184,6 +1198,7 @@ int main( void ) {
         SetDeviceOnOff(0, RING_ID_ALL);
         printlog("soffE");
       }
+      RestartCheck();
       // Idle process, do it in timer4
       //idleProcess();
       
@@ -1954,12 +1969,9 @@ void tmrProcess() {
   {
     offdelaytick--; 
   }  
-  if(gConfig.enAutoPowerTest)
+  if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
   {
-    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
-    {
-      gRunningTimeTick++;
-    }
+    gRunningTimeTick++;
   }
   // Save config into backup area
    SaveBackupConfig();
