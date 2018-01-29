@@ -132,7 +132,7 @@ void testio()
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
 #define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
-#define SUNNY_RUNNING_MAXTIME           360000*4  //4hours for max continuous running
+#define SUNNY_RUNNING_MAXTIME           60*100  //4hours for max continuous running
 uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
@@ -482,8 +482,12 @@ void LoadConfig()
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+#ifdef ENABLE_SDTM
+      gConfig.enAutoPowerTest = 0;
+#else
       // default enable auto power test mode
       gConfig.enAutoPowerTest = 1;
+#endif
       //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
@@ -1969,12 +1973,23 @@ void tmrProcess() {
   {
     offdelaytick--; 
   }  
-  if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+  if(gConfig.enAutoPowerTest)
   {
-    gRunningTimeTick++;
+    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+    {
+      gRunningTimeTick++;
+    }
+  }
+  else
+  {
+    if(gRunningTimeTick < SUNNY_RUNNING_MAXTIME)
+    {
+      gRunningTimeTick++;
+    }
   }
   // Save config into backup area
    SaveBackupConfig();
+   RestartCheck();
 }
 
 // Execute delayed operations
