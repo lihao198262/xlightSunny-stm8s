@@ -131,8 +131,9 @@ void testio()
 #define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
-#define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
-#define SUNNY_RUNNING_MAXTIME           60*100  //4hours for max continuous running
+#define SUNNY_SWITCH_INTERVAL           360000*4  //(3600*4*100 * 10ms) 4Hour
+#define SUNNY_RUNNING_MAXTIME           360000*8  //8hours for max continuous running
+uint32_t gAgingRunningTimeTick=0;
 uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
@@ -791,9 +792,9 @@ void ProcessAutoSwitchLight()
 {
   if(gConfig.enAutoPowerTest)
   {
-    if(gRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
+    if(gAgingRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
     {// switch light cct
-      gRunningTimeTick = 0;
+      gAgingRunningTimeTick = 0;
       SetDeviceBrightness(100,0);
       if(DEVST_WarmCold >=3000 && DEVST_WarmCold <= 6000)
       {
@@ -905,6 +906,7 @@ bool SayHelloToDevice(bool infinate) {
 
 void RestartCheck()
 {
+  if(gConfig.enAutoPowerTest) return;
 #ifdef XSUNNY
   if(pwm_Cold == 0 && pwm_Warm == 0)
   {
@@ -1975,17 +1977,14 @@ void tmrProcess() {
   }  
   if(gConfig.enAutoPowerTest)
   {
-    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+    if(gAgingRunningTimeTick < SUNNY_SWITCH_INTERVAL)
     {
-      gRunningTimeTick++;
+      gAgingRunningTimeTick++;
     }
   }
-  else
+  if(gRunningTimeTick < SUNNY_RUNNING_MAXTIME)
   {
-    if(gRunningTimeTick < SUNNY_RUNNING_MAXTIME)
-    {
-      gRunningTimeTick++;
-    }
+    gRunningTimeTick++;
   }
   // Save config into backup area
    SaveBackupConfig();
