@@ -531,8 +531,10 @@ void LoadConfig()
   // Engineering Code
   if(gConfig.type == devtypWBlackboard)
   {
+#ifndef ENABLE_SDTM
     gConfig.nodeID = 1;
     gConfig.subID = 1;
+#endif
     gConfig.wattOption = WATT_RM_NO_RESTRICTION;
   } else if(gConfig.type == devtypWSquare60) {
     gConfig.wattOption = WATT_RM_NO_RESTRICTION;
