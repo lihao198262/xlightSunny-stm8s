@@ -132,7 +132,7 @@ void testio()
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
 #define SUNNY_SWITCH_INTERVAL           360000*4  //(3600*4*100 * 10ms) 4Hour
-#define SUNNY_RUNNING_MAXTIME           360000*8  //8hours for max continuous running
+#define SUNNY_RUNNING_MAXTIME           360000*1  //1hours for max continuous running
 uint32_t gAgingRunningTimeTick=0;
 uint32_t gRunningTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
@@ -1506,7 +1506,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
   
 #else
   
-  if( _br != DEVST_Bright ) {
+  if( _br != DEVST_Bright || DEVST_OnOff == DEVICE_SW_OFF) {
 #ifdef GRADUAL_ONOFF    
     // Smoothly change brightness - set parameters
     delay_from[DELAY_TIM_BR] = DEVST_Bright;
