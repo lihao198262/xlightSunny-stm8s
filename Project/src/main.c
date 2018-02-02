@@ -66,8 +66,8 @@ void testio()
 /// Sunny
 #if defined(XSUNNY)
 #define XLA_PRODUCT_NAME          "XSunny"
-//#define XLA_PRODUCT_Type          devtypWSquare60
-#define XLA_PRODUCT_Type          devtypWBlackboard
+#define XLA_PRODUCT_Type          devtypWSquare60
+//#define XLA_PRODUCT_Type          devtypWBlackboard
 #endif
 /// Rainbow
 #if defined(XRAINBOW)
@@ -133,8 +133,10 @@ void testio()
 
 #define SUNNY_SWITCH_INTERVAL           360000*4  //(3600*4*100 * 10ms) 4Hour
 #define SUNNY_RUNNING_MAXTIME           360000*1  //1hours for max continuous running
+#define MAINLOOP_TIMEOUT                6000      //60s for mainloop timeout
 uint32_t gAgingRunningTimeTick=0;
 uint32_t gRunningTimeTick=0;
+uint16_t gMainloopTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
 
@@ -213,6 +215,8 @@ void feed_wwdg(void) {
   if( cntValue < WWDG_WINDOW ) {
     WWDG_SetCounter(WWDG_COUNTER);
   }
+#else
+  gMainloopTimeTick = 0;
 #endif  
 }
 
@@ -912,7 +916,7 @@ void RestartCheck()
 #ifdef XSUNNY
   if(pwm_Cold == 0 && pwm_Warm == 0)
   {
-    if(!gIsStatusChanged && gRunningTimeTick >= SUNNY_RUNNING_MAXTIME)
+    if( (!gIsStatusChanged && gRunningTimeTick >= SUNNY_RUNNING_MAXTIME) || gMainloopTimeTick >= MAINLOOP_TIMEOUT )
     {
       WWDG->CR = 0x80;
     }
@@ -1987,6 +1991,10 @@ void tmrProcess() {
   if(gRunningTimeTick < SUNNY_RUNNING_MAXTIME)
   {
     gRunningTimeTick++;
+  }
+  if(gMainloopTimeTick < MAINLOOP_TIMEOUT)
+  {
+    gMainloopTimeTick++;
   }
   // Save config into backup area
    SaveBackupConfig();
