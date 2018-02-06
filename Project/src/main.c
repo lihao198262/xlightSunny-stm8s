@@ -175,6 +175,7 @@ uint8_t m_cntRFSendFailed = 0;
 
 int32_t offdelaytick = -1;
 uint8_t flashWritting = 0;
+uint8_t feedingDog = 0;
 
 #ifdef EN_SENSOR_ALS
    uint16_t als_tick = 0;
@@ -210,14 +211,23 @@ void wwdg_init() {
 
 // Feed the Window Watchdog
 void feed_wwdg(void) {
-#ifndef DEBUG_NO_WWDG    
-  uint8_t cntValue = WWDG_GetCounter() & WWDG_COUNTER;
-  if( cntValue < WWDG_WINDOW ) {
-    WWDG_SetCounter(WWDG_COUNTER);
+#ifndef DEBUG_NO_WWDG  
+  if(feedingDog == 1)
+  {
+    //printlog("isfeeding");
+    return;
   }
-#else
-  gMainloopTimeTick = 0;
+  else
+  {
+    feedingDog = 1;
+    uint8_t cntValue = WWDG_GetCounter() & WWDG_COUNTER;
+    if( cntValue < WWDG_WINDOW ) {
+      WWDG_SetCounter(WWDG_COUNTER);
+    }
+    feedingDog = 0;
+  }
 #endif  
+  gMainloopTimeTick = 0;
 }
 
 void itoa(unsigned int n, char * buf)
@@ -258,7 +268,10 @@ void printnum(unsigned int num)
 int8_t wait_flashflag_status(uint8_t flag,uint8_t status)
 {
     uint16_t timeout = 60000;
-    while( FLASH_GetFlagStatus(flag)== status && timeout--);
+    while( FLASH_GetFlagStatus(flag)== status && timeout--)
+    {
+      feed_wwdg();
+    }
     if(!timeout) 
     {
       //printlog("timeout!");
@@ -297,6 +310,7 @@ bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
   for( uint16_t i = 0; i < Length; i++ ) {
     bytAttmpts = 0;
     while(++bytAttmpts <= 3) {
+      feed_wwdg();
       FLASH_ProgramByte(Address+i, Buffer[i]);
       FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
       
@@ -418,6 +432,7 @@ void SaveConfig()
     if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
     uint8_t Attmpts = 0;
     while(++Attmpts <= 3) {
+      feed_wwdg();
       if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
       {
         gIsStatusChanged = FALSE;
@@ -683,7 +698,7 @@ bool SendMyMessage() {
     uint8_t lv_tried = 0;
     uint16_t delay;
     while (lv_tried++ <= gConfig.rptTimes ) {
-      
+      feed_wwdg();
       // delay to avoid conflict
       /*
       if( bDelaySend && gConfig.nodeID >= NODEID_MIN_DEVCIE ) {
@@ -827,6 +842,7 @@ bool SayHelloToDevice(bool infinate) {
   UpdateNodeAddress(NODEID_GATEWAY);
 
   while(mStatus < SYS_RUNNING) {
+    feed_wwdg();
     ////////////rfscanner process///////////////////////////////
     ProcessOutputCfgMsg(); 
     ProcessAutoSwitchLight();
@@ -918,6 +934,7 @@ void RestartCheck()
   {
     if( (!gIsStatusChanged && gRunningTimeTick >= SUNNY_RUNNING_MAXTIME) || gMainloopTimeTick >= MAINLOOP_TIMEOUT )
     {
+      printlog("need restart!");
       WWDG->CR = 0x80;
     }
   }

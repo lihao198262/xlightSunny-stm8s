@@ -37,6 +37,7 @@ uint8_t Uart2SendString(uint8_t *pBuf)
   
   ucPos = 0;
   do {
+    feed_wwdg();
     if (pBuf[ucPos] != '\0') {
       Uart2SendByte(pBuf[ucPos ++]);
     } else 
