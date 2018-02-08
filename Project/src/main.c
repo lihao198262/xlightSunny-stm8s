@@ -67,6 +67,7 @@ void testio()
 #if defined(XSUNNY)
 #define XLA_PRODUCT_NAME          "XSunny"
 #define XLA_PRODUCT_Type          devtypWSquare60
+//#define XLA_PRODUCT_Type          devtypWBlackboard
 #endif
 /// Rainbow
 #if defined(XRAINBOW)
@@ -130,8 +131,12 @@ void testio()
 #define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
-#define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
+#define SUNNY_SWITCH_INTERVAL           360000*4  //(3600*4*100 * 10ms) 4Hour
+#define SUNNY_RUNNING_MAXTIME           360000*1  //1hours for max continuous running
+#define MAINLOOP_TIMEOUT                6000      //60s for mainloop timeout
+uint32_t gAgingRunningTimeTick=0;
 uint32_t gRunningTimeTick=0;
+uint16_t gMainloopTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
 
@@ -210,6 +215,8 @@ void feed_wwdg(void) {
   if( cntValue < WWDG_WINDOW ) {
     WWDG_SetCounter(WWDG_COUNTER);
   }
+#else
+  gMainloopTimeTick = 0;
 #endif  
 }
 
@@ -417,6 +424,10 @@ void SaveConfig()
         gIsChanged = FALSE;
         break;
       }
+      else
+      {
+         printlog("cfg write fail");
+      }
     }
   }
 }
@@ -476,8 +487,12 @@ void LoadConfig()
       gConfig.hasSiblingMCU = 0;
       gConfig.rptTimes = 1;
       gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+#ifdef ENABLE_SDTM
+      gConfig.enAutoPowerTest = 0;
+#else
       // default enable auto power test mode
       gConfig.enAutoPowerTest = 1;
+#endif
       //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
       //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
       
@@ -520,8 +535,10 @@ void LoadConfig()
   // Engineering Code
   if(gConfig.type == devtypWBlackboard)
   {
+#ifndef ENABLE_SDTM
     gConfig.nodeID = 1;
     gConfig.subID = 1;
+#endif
     gConfig.wattOption = WATT_RM_NO_RESTRICTION;
   } else if(gConfig.type == devtypWSquare60) {
     gConfig.wattOption = WATT_RM_NO_RESTRICTION;
@@ -781,9 +798,9 @@ void ProcessAutoSwitchLight()
 {
   if(gConfig.enAutoPowerTest)
   {
-    if(gRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
+    if(gAgingRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
     {// switch light cct
-      gRunningTimeTick = 0;
+      gAgingRunningTimeTick = 0;
       SetDeviceBrightness(100,0);
       if(DEVST_WarmCold >=3000 && DEVST_WarmCold <= 6000)
       {
@@ -893,6 +910,20 @@ bool SayHelloToDevice(bool infinate) {
   return TRUE;
 }
 
+void RestartCheck()
+{
+  if(gConfig.enAutoPowerTest) return;
+#ifdef XSUNNY
+  if(pwm_Cold == 0 && pwm_Warm == 0)
+  {
+    if( (!gIsStatusChanged && gRunningTimeTick >= SUNNY_RUNNING_MAXTIME) || gMainloopTimeTick >= MAINLOOP_TIMEOUT )
+    {
+      WWDG->CR = 0x80;
+    }
+  }
+#endif
+}
+
 int main( void ) {
   uint8_t lv_Brightness;
 
@@ -931,7 +962,8 @@ int main( void ) {
   if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
     gConfig.swTimes = 0;
     gConfig.enSDTM = 0;
-    gConfig.nodeID = BASESERVICE_ADDRESS;
+    //engineering code(don't need to change nodeid)
+    //gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
     gIsStatusChanged = TRUE;
   } else {
@@ -993,19 +1025,20 @@ int main( void ) {
     
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
-      if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
-        // Restore to previous state
-        bool preSwitch = DEVST_OnOff;
-        DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
-        SetDeviceFilter(gConfig.filter);
-        SetDeviceOnOff(preSwitch, RING_ID_ALL);
-        //delay_ms(1500);   // about 1.5 sec
-        mutex = 0;
-        WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
-      } else {
+      if( gConfig.cntRFReset >= MAX_RF_RESET_TIME ) {
         gConfig.cntRFReset = 0;
+        gIsStatusChanged = TRUE;
         printlog("rf reset");
       }
+      // Restore to previous state
+      bool preSwitch = DEVST_OnOff;
+      DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
+      SetDeviceFilter(gConfig.filter);
+      SetDeviceOnOff(preSwitch, RING_ID_ALL);
+      //delay_ms(1500);   // about 1.5 sec
+      mutex = 0;
+      WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
+      printlog("restore...");
     }
   
     // IRQ
@@ -1177,6 +1210,7 @@ int main( void ) {
         SetDeviceOnOff(0, RING_ID_ALL);
         printlog("soffE");
       }
+      RestartCheck();
       // Idle process, do it in timer4
       //idleProcess();
       
@@ -1476,7 +1510,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
   
 #else
   
-  if( _br != DEVST_Bright ) {
+  if( _br != DEVST_Bright || DEVST_OnOff == DEVICE_SW_OFF) {
 #ifdef GRADUAL_ONOFF    
     // Smoothly change brightness - set parameters
     delay_from[DELAY_TIM_BR] = DEVST_Bright;
@@ -1949,13 +1983,22 @@ void tmrProcess() {
   }  
   if(gConfig.enAutoPowerTest)
   {
-    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+    if(gAgingRunningTimeTick < SUNNY_SWITCH_INTERVAL)
     {
-      gRunningTimeTick++;
+      gAgingRunningTimeTick++;
     }
+  }
+  if(gRunningTimeTick < SUNNY_RUNNING_MAXTIME)
+  {
+    gRunningTimeTick++;
+  }
+  if(gMainloopTimeTick < MAINLOOP_TIMEOUT)
+  {
+    gMainloopTimeTick++;
   }
   // Save config into backup area
    SaveBackupConfig();
+   RestartCheck();
 }
 
 // Execute delayed operations
