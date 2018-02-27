@@ -1,6 +1,6 @@
 #include <stm8s.h>
 #include "timer_4.h"
-#include "_global.h"
+#include "publicDefine.h"
 
 uint8_t TIM4_Timer10ms = 0;
 

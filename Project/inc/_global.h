@@ -5,6 +5,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "stm8s_conf.h"
+#include "publicDefine.h"
 
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
@@ -22,12 +23,6 @@
 //#define EN_SENSOR_MQ2
 //#define EN_SENSOR_MQ7
 
-// Common Data Type
-#define UC                        uint8_t
-#define US                        uint16_t
-#define UL                        uint32_t
-#define SHORT                     int16_t
-#define LONG                      int32_t
 
 // Switch value for set power command
 #define DEVICE_SW_OFF               0       // Turn Off
@@ -265,7 +260,7 @@ typedef struct
 #endif
 
 extern Config_t gConfig;
-extern bool gIsChanged;
+extern bool gIsConfigChanged;
 extern bool gNeedSaveBackup;
 extern bool gIsStatusChanged;
 extern bool gResetRF;
@@ -290,7 +285,6 @@ void tmrProcess();
 void idleProcess();
 void ChangeDeviceBR(uint32_t _br, uint8_t _ring);
 void ResetNodeToRegister();
-void printlog(uint8_t *pBuf);
 
 #define SECOND_UNIT  1
 #define MINUTE_UNIT  2

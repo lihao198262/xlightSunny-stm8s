@@ -46,3 +46,38 @@ uint8_t Uart2SendString(uint8_t *pBuf)
   
   return 1;
 }
+
+void printlog(uint8_t *pBuf)
+{
+#ifdef DEBUG_LOG
+  Uart2SendString(pBuf);
+#endif
+}
+
+void itoa(unsigned int n, char * buf)
+{
+        int i;
+        
+        if(n < 10)
+        {
+                buf[0] = n + '0';
+                buf[1] = '\0';
+                return;
+        }
+        itoa(n / 10, buf);
+
+        for(i=0; buf[i]!='\0'; i++);
+        
+        buf[i] = (n % 10) + '0';
+        
+        buf[i+1] = '\0';
+}
+
+void printnum(unsigned int num)
+{
+#ifdef DEBUG_LOG
+  char buf[10] = {0};
+  itoa(num,buf);
+  printlog(buf);
+#endif
+}

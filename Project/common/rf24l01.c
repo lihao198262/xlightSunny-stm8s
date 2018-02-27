@@ -2,7 +2,6 @@
 #include "MyMessage.h"
 #include <stm8s_spi.h>
 #include <stm8s_gpio.h>
-#include "_global.h"
 uint8_t rx_addr[ADDRESS_WIDTH];
 uint8_t tx_addr[ADDRESS_WIDTH];
 
