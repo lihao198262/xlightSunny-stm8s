@@ -255,6 +255,44 @@ void InitNodeAddress() {
   memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
 }
 
+void UpdateNodeAddress(uint8_t _tx) {
+  memcpy(rx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
+  rx_addr[0] = gConfig.nodeID;
+  memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
+  
+  if( _tx == NODEID_RF_SCANNER ) {
+    tx_addr[0] = NODEID_RF_SCANNER;
+  } else {  
+#ifdef ENABLE_SDTM  
+    tx_addr[0] = NODEID_MIN_REMOTE;
+#else
+    if( gConfig.enSDTM ) {
+      tx_addr[0] = NODEID_MIN_REMOTE;
+    } else {
+      tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
+    }
+#endif
+  }
+  RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
+}
+
+// reset rf
+void ResetRFModule()
+{
+  if(gResetRF)
+  {
+    RF24L01_init();
+    NRF2401_EnableIRQ();
+    UpdateNodeAddress(NODEID_GATEWAY);
+    gResetRF=FALSE;
+  }
+  if(gResetNode)
+  {
+    ResetNodeToRegister();
+    gResetNode=FALSE;
+  }
+}
+
 bool IsEntireConfigInvalid() {
   return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT 
        || DEVST_Bright > 100 || gConfig.nodeID == 0
@@ -287,11 +325,12 @@ void SaveBackupConfig()
 // Save status to Flash
 void SaveStatusData()
 {
+  // status data contain nodeid subid and networkid
   if(gIsStatusChanged)
   {
     gNeedSaveBackup = TRUE;
     uint8_t pData[50] = {0};
-    uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
+    uint16_t nLen = (uint8_t *)(&gConfig.rfChannel) - (uint8_t *)(&gConfig);
     memcpy(pData, (uint8_t *)&gConfig, nLen);
     if(Flash_WriteDataBlock(STATUS_DATA_NUM, pData, nLen))
     {
@@ -304,8 +343,8 @@ void SaveStatusData()
 void SaveConfig()
 {
   if( gIsConfigChanged ) {
-    // Overwrite entire config FLASH
-    if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
+    gNeedSaveBackup = TRUE;
+    // Overwrite entire config FLASH 
     uint8_t Attmpts = 0;
     while(++Attmpts <= 3) {
       if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
@@ -315,8 +354,12 @@ void SaveConfig()
       }
     }
   }
+  if(!gIsConfigChanged)
+  { // ensure rf info is up to date
+    ResetRFModule();
+  }
+  SaveStatusData();
 }
-
 
 // Load config from Flash
 void LoadConfig()
@@ -332,7 +375,7 @@ void LoadConfig()
   printlog("\n");*/
   //gConfig.version = XLA_VERSION + 1;
   if( IsConfigInvalid() ) {
-    // If config is OK, then try to load config from backup area
+    // If config isn't OK, then try to load config from backup area
     Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
     bLoadBack = TRUE;
     if( IsConfigInvalid() ) {
@@ -396,27 +439,45 @@ void LoadConfig()
     Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
     if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
   }
-  
+
   // Load the most recent status from FLASH
-  uint8_t pData[50] = {0};
-  uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
+  uint8_t pData[50];
+  memset(pData,0x00,sizeof(pData));
+  uint16_t nLen = (uint8_t *)(&gConfig.rfChannel) - (uint8_t *)(&gConfig);
+  uint16_t nStatusLen = (uint8_t *)(&gConfig.nodeID) - (uint8_t *)(&gConfig);
   Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
   if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
-  {
-    memcpy(&gConfig,pData,nLen);
+  { // status data valid    
+    memcpy(&gConfig,pData,nStatusLen);
+    if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) )
+    { // default network config,can covered by status data or back data if they are valid
+      uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
+      if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
+      {
+        memcpy(gConfig.NetworkID,pData+networkOffset,sizeof(gConfig.NetworkID));
+      } 
+    } 
   }
   else
   {
     if(!bLoadBack)
     {
-      Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
+      Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, pData, nLen);
       if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
       {
-        memcpy(&gConfig,pData,nLen);
+        memcpy(&gConfig,pData,nStatusLen);
+        if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) )
+        { // default network config,can covered by status data or back data if they are valid
+          uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
+          if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
+          {
+            memcpy(gConfig.NetworkID,pData+networkOffset,sizeof(gConfig.NetworkID));
+          }        
+        }
       }
     }
   }
-
+  
   // Engineering Code
   if(gConfig.type == devtypWBlackboard)
   {
@@ -444,50 +505,11 @@ void LoadConfig()
 #endif
 }
 
-void UpdateNodeAddress(uint8_t _tx) {
-  memcpy(rx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
-  rx_addr[0] = gConfig.nodeID;
-  memcpy(tx_addr, gConfig.NetworkID, ADDRESS_WIDTH);
-  
-  if( _tx == NODEID_RF_SCANNER ) {
-    tx_addr[0] = NODEID_RF_SCANNER;
-  } else {  
-#ifdef ENABLE_SDTM  
-    tx_addr[0] = NODEID_MIN_REMOTE;
-#else
-    if( gConfig.enSDTM ) {
-      tx_addr[0] = NODEID_MIN_REMOTE;
-    } else {
-      tx_addr[0] = (isNodeIdRequired() ? BASESERVICE_ADDRESS : NODEID_GATEWAY);
-    }
-#endif
-  }
-  RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
-}
-
 void ResetNodeToRegister()
 {
     mStatus = SYS_RESET;
     InitNodeAddress();
 }
-
-// reset rf
-void ResetRFModule()
-{
-  if(gResetRF)
-  {
-    RF24L01_init();
-    NRF2401_EnableIRQ();
-    UpdateNodeAddress(NODEID_GATEWAY);
-    gResetRF=FALSE;
-  }
-  if(gResetNode)
-  {
-    ResetNodeToRegister();
-    gResetNode=FALSE;
-  }
-}
-
 
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
@@ -717,9 +739,9 @@ bool SayHelloToDevice(bool infinate) {
     ProcessOutputCfgMsg(); 
     ProcessAutoSwitchLight();
     // Save Config if Changed
-    SendMyMessage();
-    ResetRFModule();
     SaveConfig();
+    SendMyMessage();
+
     ////////////rfscanner process///////////////////////////////
     if( _count++ == 0 ) {
       
@@ -950,7 +972,7 @@ int main( void ) {
       // Must establish connection firstly
       SayHelloToDevice(TRUE);
       gConfig.enAutoPowerTest = 0;
-      gIsConfigChanged = TRUE;
+      gIsStatusChanged = TRUE;
     }
 #endif
     //PrintDevStatus();
@@ -1080,15 +1102,13 @@ int main( void ) {
 #endif      
       ////////////rfscanner process///////////////////////////////
       ProcessOutputCfgMsg(); 
-      // reset rf
-      ResetRFModule();
+      // Save Config if Changed
+      SaveConfig();
       ////////////rfscanner process///////////////////////////////     
       // Send message if ready
       //printlog("SndS");
       SendMyMessage();
       //printlog("SndE");
-      // Save Config if Changed
-      SaveConfig();
       //printlog("SvgE");
       if(offdelaytick == 0)
       {
