@@ -300,12 +300,17 @@ bool IsEntireConfigInvalid() {
 }
 
 bool IsStatusInvalid() {
-  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT 
+#ifdef XSUNNY
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT
+       || DEVST_WarmCold < CT_MIN_VALUE || DEVST_WarmCold > CT_MAX_VALUE || DEVST_Bright > 100);
+#else
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT
        || DEVST_Bright > 100);
+#endif
 }
 
 bool IsConfigInvalid() {
-  return(gConfig.version > XLA_VERSION || gConfig.nodeID == 0 
+  return(gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT || gConfig.nodeID == 0 
         || gConfig.rfPowerLevel > RF24_PA_MAX || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
 }
 
@@ -364,39 +369,26 @@ void SaveConfig()
 // Load config from Flash
 void LoadConfig()
 {
-  // Load the config from FLASH
+  // Load the config area
   Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-  bool bLoadBack = FALSE;
   /*printnum(gConfig.version);
   printnum(gConfig.swTimes);
   printnum(gConfig.cntRFReset);
   printnum(gConfig.nodeID);
   printnum(gConfig.rfChannel);
   printlog("\n");*/
-  //gConfig.version = XLA_VERSION + 1;
+  uint16_t nStatusLen = (uint8_t *)(&gConfig.nodeID) - (uint8_t *)(&gConfig);
   if( IsConfigInvalid() ) {
     // If config isn't OK, then try to load config from backup area
-    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-    bLoadBack = TRUE;
-    if( IsConfigInvalid() ) {
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS+nStatusLen, (uint8_t *)&gConfig.nodeID, sizeof(gConfig)-nStatusLen);
+    bool backupInvalid = IsConfigInvalid();
+    InitNodeAddress();
+    if( backupInvalid ) {
       // If neither valid, then initialize config with default settings
-      memset(&gConfig, 0x00, sizeof(gConfig));
       gConfig.version = XLA_VERSION;
       gConfig.nodeID = BASESERVICE_ADDRESS;
       InitNodeAddress();
       gConfig.type = XLA_PRODUCT_Type;
-      gConfig.ring[0].State = 1;
-      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
-#if defined(XSUNNY)
-      gConfig.ring[0].CCT = CT_MIN_VALUE;
-#else
-      gConfig.ring[0].CCT = 0;
-      gConfig.ring[0].R = 128;
-      gConfig.ring[0].G = 64;
-      gConfig.ring[0].B = 100;
-#endif      
-      gConfig.ring[1] = gConfig.ring[0];
-      gConfig.ring[2] = gConfig.ring[0];
       gConfig.rfChannel = RF24_CHANNEL;
       gConfig.rfPowerLevel = RF24_PA_MAX;
       gConfig.rfDataRate = RF24_250KBPS;      
@@ -409,9 +401,6 @@ void LoadConfig()
       // default enable auto power test mode
       gConfig.enAutoPowerTest = 1;
 #endif
-      //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
-      //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
-      
       gConfig.senMap = 0;
 #ifdef EN_SENSOR_ALS
       gConfig.senMap |= sensorALS;
@@ -430,21 +419,32 @@ void LoadConfig()
       gConfig.alsLevel[0] = 70;
       gConfig.alsLevel[1] = 80;
       gConfig.pirLevel[0] = 0;
-      gConfig.pirLevel[1] = 0;        
+      gConfig.pirLevel[1] = 0; 
+      
+      gConfig.ring[0].State = 1;
+      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+#ifdef XSUNNY
+      gConfig.ring[0].CCT = CT_MIN_VALUE;
+#else
+      gConfig.ring[0].CCT = 0;
+      gConfig.ring[0].R = 128;
+      gConfig.ring[0].G = 64;
+      gConfig.ring[0].B = 100;
+#endif      
+      gConfig.ring[1] = gConfig.ring[0];
+      gConfig.ring[2] = gConfig.ring[0];
     }
-    //gConfig.swTimes = 0;
     gIsConfigChanged = TRUE;
+    SaveConfig();
   } else {
     uint8_t bytVersion;
     Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
     if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
   }
-
   // Load the most recent status from FLASH
   uint8_t pData[50];
   memset(pData,0x00,sizeof(pData));
   uint16_t nLen = (uint8_t *)(&gConfig.rfChannel) - (uint8_t *)(&gConfig);
-  uint16_t nStatusLen = (uint8_t *)(&gConfig.nodeID) - (uint8_t *)(&gConfig);
   Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
   if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
   { // status data valid    
@@ -459,23 +459,38 @@ void LoadConfig()
     } 
   }
   else
-  {
-    if(!bLoadBack)
-    {
-      Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, pData, nLen);
-      if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
-      {
-        memcpy(&gConfig,pData,nStatusLen);
-        if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) )
-        { // default network config,can covered by status data or back data if they are valid
-          uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
-          if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
-          {
-            memcpy(gConfig.NetworkID,pData+networkOffset,sizeof(gConfig.NetworkID));
-          }        
-        }
+  { // load backup area for status data
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, pData, nLen);
+    if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
+    { // status data valid 
+      memcpy(&gConfig,pData,nStatusLen);
+      if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) )
+      { // default network config,can covered by status data or back data if they are valid
+        uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
+        if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
+        {
+          memcpy(gConfig.NetworkID,pData+networkOffset,sizeof(gConfig.NetworkID));
+        }        
       }
     }
+  }
+ 
+  if(IsStatusInvalid())
+  {
+    // default status value
+    gConfig.version = XLA_VERSION;
+    gConfig.ring[0].State = 1;
+    gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+#ifdef XSUNNY
+    gConfig.ring[0].CCT = CT_MIN_VALUE;
+#else
+    gConfig.ring[0].CCT = 0;
+    gConfig.ring[0].R = 128;
+    gConfig.ring[0].G = 64;
+    gConfig.ring[0].B = 100;
+#endif      
+    gConfig.ring[1] = gConfig.ring[0];
+    gConfig.ring[2] = gConfig.ring[0];
   }
   
   // Engineering Code
@@ -485,24 +500,8 @@ void LoadConfig()
     gConfig.nodeID = 1;
     gConfig.subID = 1;
 #endif
-    gConfig.wattOption = WATT_RM_NO_RESTRICTION;
-  } else if(gConfig.type == devtypWSquare60) {
-    gConfig.wattOption = WATT_RM_NO_RESTRICTION;
   }
-  //gConfig.wattOption = WATT_RM_NO_RESTRICTION;
-  // Classroom light: 1
-  //gConfig.subID = 2;          // Blackboard light: 2
-  //gConfig.rfDataRate = RF24_250KBPS;
   if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
-#ifdef EN_SENSOR_ALS
-  gConfig.senMap |= sensorALS;
-#endif
-#ifdef EN_SENSOR_PIR
-  gConfig.senMap |= sensorPIR;
-#endif    
-#ifdef EN_SENSOR_PM25
-  gConfig.senMap |= sensorDUST;
-#endif
 }
 
 void ResetNodeToRegister()
