@@ -246,6 +246,11 @@ bool isNodeIdRequired()
          isIdentityEmpty(gConfig.NetworkID, ADDRESS_WIDTH) || isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) );
 }
 
+bool isNodeIdInvalid()
+{
+  return( (IS_NOT_DEVICE_NODEID(gConfig.nodeID) && !IS_GROUP_NODEID(gConfig.nodeID)) );
+}
+
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
 void InitNodeAddress() {
   // Whether has preset node id
@@ -449,8 +454,8 @@ void LoadConfig()
   if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
   { // status data valid    
     memcpy(&gConfig,pData,nStatusLen);
-    if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) )
-    { // default network config,can covered by status data or back data if they are valid
+    if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) && !isNodeIdInvalid() )
+    { // valid nodeid but with default network config,can covered by status data or back data if they are valid
       uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
       if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
       {
@@ -464,8 +469,8 @@ void LoadConfig()
     if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
     { // status data valid 
       memcpy(&gConfig,pData,nStatusLen);
-      if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) )
-      { // default network config,can covered by status data or back data if they are valid
+      if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) && !isNodeIdInvalid())
+      { // valid nodeid but with default network config,can covered by status data or back data if they are valid
         uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
         if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
         {
