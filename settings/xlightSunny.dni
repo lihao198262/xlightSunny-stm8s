@@ -9,7 +9,7 @@ TriggerName=main
 LimitSize=0
 ByteLimit=50
 [DebugChecksum]
-Checksum=-1406822079
+Checksum=1660759613
 [CallStack]
 ShowArgs=0
 [Disassembly]
@@ -48,6 +48,7 @@ Fmt2=Hue_t-CCT	3	0
 [array_types]
 Fmt0=uint8_t[128]	4	0
 Fmt1=uint8_t[50]	4	0
+Fmt2=uint8_t[6]	4	0
 [watch_formats]
 Fmt0={W}1:mTimerKeepAlive	4	0
 [DataSample]
@@ -55,49 +56,6 @@ LogEnabled=0
 GraphEnabled=0
 ShowTimeLog=1
 ShowTimeSum=1
-[Breakpoints]
-Bp0=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.912.3" 1 0 0 0 "" 0 ""
-Bp1=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.912.3" 1 0 0 0 "" 0 ""
-Bp2=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.1736.5" 1 0 0 0 "" 0 ""
-Bp3=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.1736.5" 1 0 0 0 "" 0 ""
-Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\src\LightPwmDrv.c}.516.3" 0 0 0 0 "" 0 ""
-Bp5=_ "STD_CODE" "{$PROJ_DIR$\Project\src\LightPwmDrv.c}.507.16" 0 0 0 0 "" 0 ""
-Bp6=_ "STD_CODE" "{$PROJ_DIR$\Project\src\LightPwmDrv.c}.509.7" 0 0 0 0 "" 0 ""
-Bp7=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.1591.5" 1 0 0 0 "" 0 ""
-Bp8=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.429.7" 1 0 0 0 "" 0 ""
-Bp9=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.398.7" 1 0 0 0 "" 0 ""
-Bp10=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.510.5" 1 0 0 0 "" 0 ""
-Bp11=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.912.3" 1 0 0 0 "" 0 ""
-Bp12=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.448.3" 1 0 0 0 "" 0 ""
-Bp13=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.830.7" 1 0 0 0 "" 0 ""
-Bp14=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.830.7" 1 0 0 0 "" 0 ""
-Bp15=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.939.9" 1 0 0 0 "" 0 ""
-Bp16=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.912.3" 1 0 0 0 "" 0 ""
-Bp17=_ "STD_CODE" "{$PROJ_DIR$\..\xlightCommon-stm8s\Xlight_lib\FlashDataStorage.c}.106.7" 1 0 0 0 "" 0 ""
-Bp18=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.465.7" 1 0 0 0 "" 0 ""
-Bp19=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.465.7" 1 0 0 0 "" 0 ""
-Bp20=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.448.3" 1 0 0 0 "" 0 ""
-Bp21=_ "STD_CODE" "{$PROJ_DIR$\Project\src\ProtocolParser.c}.801.9" 1 0 0 0 "" 0 ""
-Bp22=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.291.5" 1 0 0 0 "" 0 ""
-Bp23=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.939.9" 1 0 0 0 "" 0 ""
-Bp24=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.465.7" 1 0 0 0 "" 0 ""
-Bp25=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.234.3" 1 0 0 0 "" 0 ""
-Bp26=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.350.7" 1 0 0 0 "" 0 ""
-Bp27=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.352.9" 1 0 0 0 "" 0 ""
-Bp28=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.873.5" 1 0 0 0 "" 0 ""
-Bp29=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.873.5" 1 0 0 0 "" 0 ""
-Bp30=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.687.1" 1 0 0 0 "" 0 ""
-Bp31=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.797.7" 1 0 0 0 "" 0 ""
-Bp32=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.760.9" 1 0 0 0 "" 0 ""
-Bp33=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.754.9" 1 0 0 0 "" 0 ""
-Bp34=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.909.3" 1 0 0 0 "" 0 ""
-Bp35=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.684.3" 1 0 0 0 "" 0 ""
-Bp36=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.451.5" 1 0 0 0 "" 0 ""
-Bp37=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.468.9" 1 0 0 0 "" 0 ""
-Bp38=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.379.5" 1 0 0 0 "" 0 ""
-Bp39=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.973.7" 1 0 0 0 "" 0 ""
-Bp40=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.368.3" 1 0 0 0 "" 0 ""
-Count=41
 [Log file]
 LoggingEnabled=_ 0
 LogFile=_ ""
@@ -105,6 +63,38 @@ Category=_ 0
 [TermIOLog]
 LoggingEnabled=_ 0
 LogFile=_ ""
+[Breakpoints]
+Bp0=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.953.5" 1 0 0 0 "" 0 ""
+Bp1=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.953.5" 1 0 0 0 "" 0 ""
+Bp2=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.1759.3" 1 0 0 0 "" 0 ""
+Bp3=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.1759.3" 1 0 0 0 "" 0 ""
+Bp4=_ "STD_CODE" "{$PROJ_DIR$\Project\src\LightPwmDrv.c}.516.3" 0 0 0 0 "" 0 ""
+Bp5=_ "STD_CODE" "{$PROJ_DIR$\Project\src\LightPwmDrv.c}.507.16" 0 0 0 0 "" 0 ""
+Bp6=_ "STD_CODE" "{$PROJ_DIR$\Project\src\LightPwmDrv.c}.509.7" 0 0 0 0 "" 0 ""
+Bp7=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.1751.3" 1 0 0 0 "" 0 ""
+Bp8=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.953.5" 1 0 0 0 "" 0 ""
+Bp9=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.470.9" 1 0 0 0 "" 0 ""
+Bp10=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.953.5" 1 0 0 0 "" 0 ""
+Bp11=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.485.5" 1 0 0 0 "" 0 ""
+Bp12=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.485.5" 1 0 0 0 "" 0 ""
+Bp13=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.470.9" 1 0 0 0 "" 0 ""
+Bp14=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.291.5" 1 0 0 0 "" 0 ""
+Bp15=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.485.5" 1 0 0 0 "" 0 ""
+Bp16=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.234.3" 1 0 0 0 "" 0 ""
+Bp17=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.373.3" 1 0 0 0 "" 0 ""
+Bp18=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.935.5" 1 0 0 0 "" 0 ""
+Bp19=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.935.5" 1 0 0 0 "" 0 ""
+Bp20=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.936.7" 1 0 0 0 "" 0 ""
+Bp21=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.470.9" 1 0 0 0 "" 0 ""
+Bp22=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.497.3" 1 0 0 0 "" 0 ""
+Bp23=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.404.7" 1 0 0 0 "" 0 ""
+Bp24=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.388.7" 1 0 0 0 "" 0 ""
+Bp25=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.504.3" 1 0 0 0 "" 0 ""
+Bp26=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.373.3" 1 0 0 0 "" 0 ""
+Bp27=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.500.5" 1 0 0 0 "" 0 ""
+Bp28=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.452.5" 1 0 0 0 "" 0 ""
+Bp29=_ "STD_CODE" "{$PROJ_DIR$\Project\src\main.c}.351.5" 1 0 0 0 "" 0 ""
+Count=30
 [Aliases]
 Count=0
 SuppressDialog=0
