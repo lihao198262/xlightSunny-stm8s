@@ -10,7 +10,7 @@
 /* Exported types ------------------------------------------------------------*/
 // Simple Direct Test
 // Uncomment this line to work in Simple Direct Test Mode
-//#define ENABLE_SDTM
+#define ENABLE_SDTM
 
 // Include Sensors
 /// Comment off line to disable sensor
@@ -75,7 +75,7 @@
 #define BASESERVICE_ADDRESS     0xFE
 #define BROADCAST_ADDRESS       0xFF
 
-#define BR_MIN_VALUE            1
+#define BR_MIN_VALUE            10
 #define CT_MIN_VALUE            2700
 #define CT_MAX_VALUE            6500
 #define CT_SCOPE                38    
