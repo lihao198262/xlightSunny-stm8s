@@ -8,6 +8,7 @@
 #include "timer_4.h"
 #include "color_factory.h"
 #include "Uart2Dev.h"
+#include "FlashDataStorage.h"
 
 #ifdef EN_SENSOR_ALS || EN_SENSOR_MIC
 #include "ADC1Dev.h"
@@ -67,6 +68,7 @@ void testio()
 #if defined(XSUNNY)
 #define XLA_PRODUCT_NAME          "XSunny"
 #define XLA_PRODUCT_Type          devtypWSquare60
+//#define XLA_PRODUCT_Type          devtypWBlackboard
 #endif
 /// Rainbow
 #if defined(XRAINBOW)
@@ -79,12 +81,6 @@ void testio()
 #define XLA_PRODUCT_Type          devtypMRing3
 #endif
 
-// Starting Flash block number of backup config
-#define BACKUP_CONFIG_BLOCK_NUM         2
-#define BACKUP_CONFIG_ADDRESS           (FLASH_DATA_START_PHYSICAL_ADDRESS + BACKUP_CONFIG_BLOCK_NUM * FLASH_BLOCK_SIZE)
-#define STATUS_DATA_NUM                 4
-#define STATUS_DATA_ADDRESS             (FLASH_DATA_START_PHYSICAL_ADDRESS + STATUS_DATA_NUM * FLASH_BLOCK_SIZE)
-
 // RF channel for the sensor net, 0-127
 #define RF24_CHANNEL	   		100
 
@@ -95,8 +91,6 @@ void testio()
 #define WWDG_WINDOW                     0x77
 
 #define NO_RESTART_MODE
-
-//#define DEBUG_LOG
 
 // System Startup Status
 #define SYS_INIT                        0
@@ -130,8 +124,12 @@ void testio()
 #define SEN_READ_PM25                   400    // about 4s (400 * 10ms)
 #define SEN_READ_DHT                    300    // about 3s (300 * 10ms)
 
-#define SUNNY_SWITCH_INTERVAL           360000*3  //(3600*3*100 * 10ms) 3Hour
+#define SUNNY_SWITCH_INTERVAL           360000*4  //(3600*4*100 * 10ms) 4Hour
+#define SUNNY_RUNNING_MAXTIME           360000*1  //1hours for max continuous running
+#define MAINLOOP_TIMEOUT                6000      //60s for mainloop timeout
+uint32_t gAgingRunningTimeTick=0;
 uint32_t gRunningTimeTick=0;
+uint16_t gMainloopTimeTick=0;
 // Uncomment this line to enable CCT brightness quadratic function
 //#define CCT_BR_QUADRATIC_FUNC
 
@@ -150,7 +148,7 @@ Config_t gConfig;
 MyMessage_t sndMsg, rcvMsg;
 uint8_t *psndMsg = (uint8_t *)&sndMsg;
 uint8_t *prcvMsg = (uint8_t *)&rcvMsg;
-bool gIsChanged = FALSE;
+bool gIsConfigChanged = FALSE;
 bool gNeedSaveBackup = FALSE;
 bool gIsStatusChanged = FALSE;
 bool gResetRF = FALSE;
@@ -169,7 +167,7 @@ uint16_t mTimerKeepAlive = 0;
 uint8_t m_cntRFSendFailed = 0;
 
 int32_t offdelaytick = -1;
-uint8_t flashWritting = 0;
+uint8_t feedingDog = 0;
 
 #ifdef EN_SENSOR_ALS
    uint16_t als_tick = 0;
@@ -205,140 +203,23 @@ void wwdg_init() {
 
 // Feed the Window Watchdog
 void feed_wwdg(void) {
-#ifndef DEBUG_NO_WWDG    
-  uint8_t cntValue = WWDG_GetCounter() & WWDG_COUNTER;
-  if( cntValue < WWDG_WINDOW ) {
-    WWDG_SetCounter(WWDG_COUNTER);
+#ifndef DEBUG_NO_WWDG  
+  if(feedingDog == 1)
+  {
+    //printlog("isfeeding");
+    return;
+  }
+  else
+  {
+    feedingDog = 1;
+    uint8_t cntValue = WWDG_GetCounter() & WWDG_COUNTER;
+    if( cntValue < WWDG_WINDOW ) {
+      WWDG_SetCounter(WWDG_COUNTER);
+    }
+    feedingDog = 0;
   }
 #endif  
-}
-
-void itoa(unsigned int n, char * buf)
-{
-        int i;
-        
-        if(n < 10)
-        {
-                buf[0] = n + '0';
-                buf[1] = '\0';
-                return;
-        }
-        itoa(n / 10, buf);
-
-        for(i=0; buf[i]!='\0'; i++);
-        
-        buf[i] = (n % 10) + '0';
-        
-        buf[i+1] = '\0';
-}
-
-void printlog(uint8_t *pBuf)
-{
-#ifdef DEBUG_LOG
-  Uart2SendString(pBuf);
-#endif
-}
-
-void printnum(unsigned int num)
-{
-#ifdef DEBUG_LOG
-  char buf[10] = {0};
-  itoa(num,buf);
-  printlog(buf);
-#endif
-}
-
-int8_t wait_flashflag_status(uint8_t flag,uint8_t status)
-{
-    uint16_t timeout = 60000;
-    while( FLASH_GetFlagStatus(flag)== status && timeout--);
-    if(!timeout) 
-    {
-      //printlog("timeout!");
-      return 1;
-    }
-    return 0;
-}
-
-void Flash_ReadBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
-  assert_param(IS_FLASH_ADDRESS_OK(Address));
-  assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
-  
-  for( uint16_t i = 0; i < Length; i++ ) {
-    Buffer[i] = FLASH_ReadByte(Address+i);
-  }
-}
-
-bool Flash_WriteBuf(uint32_t Address, uint8_t *Buffer, uint16_t Length) {
-  assert_param(IS_FLASH_ADDRESS_OK(Address));
-  assert_param(IS_FLASH_ADDRESS_OK(Address+Length));
-  if(flashWritting == 1)
-  {
-    printlog("iswriting");
-    return FALSE;
-  }
-  flashWritting = 1;
-  // Init Flash Read & Write
-  FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
-  FLASH_Unlock(FLASH_MEMTYPE_DATA);
-  //while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
-  if(wait_flashflag_status(FLASH_FLAG_DUL,RESET)) return FALSE;
-  
-  // Write byte by byte
-  bool rc = TRUE;
-  uint8_t bytVerify, bytAttmpts;
-  for( uint16_t i = 0; i < Length; i++ ) {
-    bytAttmpts = 0;
-    while(++bytAttmpts <= 3) {
-      FLASH_ProgramByte(Address+i, Buffer[i]);
-      FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
-      
-      // Read and verify the byte we just wrote
-      bytVerify = FLASH_ReadByte(Address+i);
-      if( bytVerify == Buffer[i] ) break;
-    }
-    if( bytAttmpts > 3 ) {
-      rc = FALSE;
-      break;
-    }
-  }
-  FLASH_Lock(FLASH_MEMTYPE_DATA);
-  flashWritting = 0;
-  return rc;
-}
- 
-bool Flash_WriteDataBlock(uint16_t nStartBlock, uint8_t *Buffer, uint16_t Length) {
-  // Init Flash Read & Write
-  if(flashWritting == 1) 
-  {
-    printlog("iswriting");
-    return FALSE;
-  }
-  flashWritting = 1;
-  FLASH_SetProgrammingTime(FLASH_PROGRAMTIME_STANDARD);
-  FLASH_Unlock(FLASH_MEMTYPE_DATA);
-  //while (FLASH_GetFlagStatus(FLASH_FLAG_DUL) == RESET);
-  if(wait_flashflag_status(FLASH_FLAG_DUL,RESET)) return FALSE;
-  
-  uint8_t WriteBuf[FLASH_BLOCK_SIZE];
-  uint16_t nBlockNum = (Length - 1) / FLASH_BLOCK_SIZE + 1;
-  for( uint16_t block = nStartBlock; block < nStartBlock + nBlockNum; block++ ) {
-    memset(WriteBuf, 0x00, FLASH_BLOCK_SIZE);
-    uint8_t maxLen = FLASH_BLOCK_SIZE;
-    if(block == nStartBlock + nBlockNum -1)
-    {
-      maxLen = Length - (nBlockNum -1)*FLASH_BLOCK_SIZE;
-    }
-    for( uint16_t i = 0; i < maxLen; i++ ) {
-      WriteBuf[i] = Buffer[(block - nStartBlock) * FLASH_BLOCK_SIZE + i];
-    }
-    FLASH_ProgramBlock(block, FLASH_MEMTYPE_DATA, FLASH_PROGRAMMODE_STANDARD, WriteBuf);
-    FLASH_WaitForLastOperation(FLASH_MEMTYPE_DATA);
-  }
-  
-  FLASH_Lock(FLASH_MEMTYPE_DATA);
-  flashWritting = 0;
-  return TRUE;
+  gMainloopTimeTick = 0;
 }
 
 uint8_t *Read_UniqueID(uint8_t *UniqueID, uint16_t Length)  
@@ -365,60 +246,9 @@ bool isNodeIdRequired()
          isIdentityEmpty(gConfig.NetworkID, ADDRESS_WIDTH) || isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) );
 }
 
-// Save config to Flash
-void SaveBackupConfig()
+bool isNodeIdInvalid()
 {
-  if( gNeedSaveBackup ) {
-    // Overwrite entire config FLASH
-    if(Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig)))
-    {
-      gNeedSaveBackup = FALSE;
-    }
-    else
-    {
-      printlog("back write fail");
-    }
-  }
-}
-
-// Save status to Flash
-void SaveStatusData()
-{
-    // Skip the first byte (version)
-    uint8_t pData[50] = {0};
-    uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
-    memcpy(pData, (uint8_t *)&gConfig, nLen);
-    if(Flash_WriteDataBlock(STATUS_DATA_NUM, pData, nLen))
-    {
-      gIsStatusChanged = FALSE;
-    }
-    else
-    {
-      printlog("status write fail");
-    }  
-}
-
-// Save config to Flash
-void SaveConfig()
-{
-  if( gIsStatusChanged ) {
-    // Overwrite only Static & status parameters
-    SaveStatusData();
-    gIsChanged = TRUE;
-  }
-  if( gIsChanged ) {
-    // Overwrite entire config FLASH
-    if( !isNodeIdRequired() ) gNeedSaveBackup = TRUE;
-    uint8_t Attmpts = 0;
-    while(++Attmpts <= 3) {
-      if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
-      {
-        gIsStatusChanged = FALSE;
-        gIsChanged = FALSE;
-        break;
-      }
-    }
-  }
+  return( (IS_NOT_DEVICE_NODEID(gConfig.nodeID) && !IS_GROUP_NODEID(gConfig.nodeID)) );
 }
 
 // Initialize Node Address and look forward to being assigned with a valid NodeID by the SmartController
@@ -428,118 +258,6 @@ void InitNodeAddress() {
     gConfig.nodeID = BASESERVICE_ADDRESS; // NODEID_MAINDEVICE; BASESERVICE_ADDRESS; NODEID_DUMMY
   }
   memcpy(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH);
-}
-
-bool IsConfigInvalid() {
-  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT 
-       || DEVST_Bright > 100 || gConfig.nodeID == 0
-       || gConfig.rfPowerLevel > RF24_PA_MAX || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
-}
-
-// Load config from Flash
-void LoadConfig()
-{
-  // Load the most recent settings from FLASH
-  Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-  /*printnum(gConfig.version);
-  printnum(gConfig.swTimes);
-  printnum(gConfig.cntRFReset);
-  printnum(gConfig.nodeID);
-  printnum(gConfig.rfChannel);
-  printlog("\n");*/
-  //gConfig.version = XLA_VERSION + 1;
-  if( IsConfigInvalid() ) {
-    // If config is OK, then try to load config from backup area
-    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
-    if( IsConfigInvalid() ) {
-      // If neither valid, then initialize config with default settings
-      memset(&gConfig, 0x00, sizeof(gConfig));
-      gConfig.version = XLA_VERSION;
-      gConfig.nodeID = BASESERVICE_ADDRESS;
-      InitNodeAddress();
-      gConfig.type = XLA_PRODUCT_Type;
-      gConfig.ring[0].State = 1;
-      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
-#if defined(XSUNNY)
-      gConfig.ring[0].CCT = CT_MIN_VALUE;
-#else
-      gConfig.ring[0].CCT = 0;
-      gConfig.ring[0].R = 128;
-      gConfig.ring[0].G = 64;
-      gConfig.ring[0].B = 100;
-#endif      
-      gConfig.ring[1] = gConfig.ring[0];
-      gConfig.ring[2] = gConfig.ring[0];
-      gConfig.rfChannel = RF24_CHANNEL;
-      gConfig.rfPowerLevel = RF24_PA_MAX;
-      gConfig.rfDataRate = RF24_250KBPS;      
-      gConfig.hasSiblingMCU = 0;
-      gConfig.rptTimes = 1;
-      gConfig.wattOption = WATT_RM_NO_RESTRICTION;
-      // default enable auto power test mode
-      gConfig.enAutoPowerTest = 1;
-      //sprintf(gConfig.Organization, "%s", XLA_ORGANIZATION);
-      //sprintf(gConfig.ProductName, "%s", XLA_PRODUCT_NAME);
-      
-      gConfig.senMap = 0;
-#ifdef EN_SENSOR_ALS
-      gConfig.senMap |= sensorALS;
-#endif
-#ifdef EN_SENSOR_PIR
-      gConfig.senMap |= sensorPIR;
-#endif
-#ifdef EN_SENSOR_DHT
-      gConfig.senMap |= sensorDHT;
-#endif
-#ifdef EN_SENSOR_PM25
-      gConfig.senMap |= sensorDUST;
-#endif
-      
-      gConfig.funcMap = 0;
-      gConfig.alsLevel[0] = 70;
-      gConfig.alsLevel[1] = 80;
-      gConfig.pirLevel[0] = 0;
-      gConfig.pirLevel[1] = 0;        
-    }
-    //gConfig.swTimes = 0;
-    gIsChanged = TRUE;
-  } else {
-    uint8_t bytVersion;
-    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
-    if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
-  }
-  
-  // Load the most recent status from FLASH
-  uint8_t pData[50] = {0};
-  uint16_t nLen = (uint16_t)(&(gConfig.nodeID)) - (uint16_t)(&gConfig);
-  Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
-  if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
-  {
-    memcpy(&gConfig,pData,nLen);
-  }
-  // Engineering Code
-  if(gConfig.type == devtypWBlackboard)
-  {
-    gConfig.nodeID = 1;
-    gConfig.subID = 1;
-    gConfig.wattOption = WATT_RM_NO_RESTRICTION;
-  } else if(gConfig.type == devtypWSquare60) {
-    gConfig.wattOption = WATT_RM_NO_RESTRICTION;
-  }
-  //gConfig.wattOption = WATT_RM_NO_RESTRICTION;
-  // Classroom light: 1
-  //gConfig.subID = 2;          // Blackboard light: 2
-  //gConfig.rfDataRate = RF24_250KBPS;
-  if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
-#ifdef EN_SENSOR_ALS
-  gConfig.senMap |= sensorALS;
-#endif
-#ifdef EN_SENSOR_PIR
-  gConfig.senMap |= sensorPIR;
-#endif    
-#ifdef EN_SENSOR_PM25
-  gConfig.senMap |= sensorDUST;
-#endif
 }
 
 void UpdateNodeAddress(uint8_t _tx) {
@@ -563,12 +281,6 @@ void UpdateNodeAddress(uint8_t _tx) {
   RF24L01_setup(gConfig.rfChannel, gConfig.rfDataRate, gConfig.rfPowerLevel, BROADCAST_ADDRESS);     // With openning the boardcast pipe
 }
 
-void ResetNodeToRegister()
-{
-    mStatus = SYS_RESET;
-    InitNodeAddress();
-}
-
 // reset rf
 void ResetRFModule()
 {
@@ -586,6 +298,222 @@ void ResetRFModule()
   }
 }
 
+bool IsEntireConfigInvalid() {
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT 
+       || DEVST_Bright > 100 || gConfig.nodeID == 0
+       || gConfig.rfPowerLevel > RF24_PA_MAX || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
+}
+
+bool IsStatusInvalid() {
+#ifdef XSUNNY
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT
+       || DEVST_WarmCold < CT_MIN_VALUE || DEVST_WarmCold > CT_MAX_VALUE || DEVST_Bright > 100);
+#else
+  return( gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT
+       || DEVST_Bright > 100);
+#endif
+}
+
+bool IsConfigInvalid() {
+  return(gConfig.version > XLA_VERSION || gConfig.version < XLA_MIN_VER_REQUIREMENT || gConfig.nodeID == 0 
+        || gConfig.rfPowerLevel > RF24_PA_MAX || gConfig.rfChannel > 127 || gConfig.rfDataRate > RF24_250KBPS );
+}
+
+
+// Save config to Flash
+void SaveBackupConfig()
+{
+  if( gNeedSaveBackup ) {
+    // back config FLASH
+    if(Flash_WriteDataBlock(BACKUP_CONFIG_BLOCK_NUM, (uint8_t *)&gConfig, sizeof(gConfig)))
+    {
+      gNeedSaveBackup = FALSE;
+    }
+  }
+}
+
+// Save status to Flash
+void SaveStatusData()
+{
+  // status data contain nodeid subid and networkid
+  if(gIsStatusChanged)
+  {
+    gNeedSaveBackup = TRUE;
+    uint8_t pData[50] = {0};
+    uint16_t nLen = (uint8_t *)(&gConfig.rfChannel) - (uint8_t *)(&gConfig);
+    memcpy(pData, (uint8_t *)&gConfig, nLen);
+    if(Flash_WriteDataBlock(STATUS_DATA_NUM, pData, nLen))
+    {
+      gIsStatusChanged = FALSE;
+    }
+  }
+}
+
+// Save config data to Flash(can't be called at working time)
+void SaveConfig()
+{
+  if( gIsConfigChanged ) {
+    gNeedSaveBackup = TRUE;
+    // Overwrite entire config FLASH 
+    uint8_t Attmpts = 0;
+    while(++Attmpts <= 3) {
+      if(Flash_WriteDataBlock(0, (uint8_t *)&gConfig, sizeof(gConfig)))
+      {
+        gIsConfigChanged = FALSE;
+        break;
+      }
+    }
+  }
+  if(!gIsConfigChanged)
+  { // ensure rf info is up to date
+    ResetRFModule();
+  }
+  SaveStatusData();
+}
+
+// Load config from Flash
+void LoadConfig()
+{
+  // Load the config area
+  Flash_ReadBuf(FLASH_DATA_START_PHYSICAL_ADDRESS, (uint8_t *)&gConfig, sizeof(gConfig));
+  /*printnum(gConfig.version);
+  printnum(gConfig.swTimes);
+  printnum(gConfig.cntRFReset);
+  printnum(gConfig.nodeID);
+  printnum(gConfig.rfChannel);
+  printlog("\n");*/
+  uint16_t nStatusLen = (uint8_t *)(&gConfig.nodeID) - (uint8_t *)(&gConfig);
+  if( IsConfigInvalid() ) {
+    // If config isn't OK, then try to load config from backup area
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS+nStatusLen, (uint8_t *)&gConfig.nodeID, sizeof(gConfig)-nStatusLen);
+    bool backupInvalid = IsConfigInvalid();
+    InitNodeAddress();
+    if( backupInvalid ) {
+      // If neither valid, then initialize config with default settings
+      gConfig.version = XLA_VERSION;
+      gConfig.nodeID = BASESERVICE_ADDRESS;
+      InitNodeAddress();
+      gConfig.type = XLA_PRODUCT_Type;
+      gConfig.rfChannel = RF24_CHANNEL;
+      gConfig.rfPowerLevel = RF24_PA_MAX;
+      gConfig.rfDataRate = RF24_250KBPS;      
+      gConfig.hasSiblingMCU = 0;
+      gConfig.rptTimes = 1;
+      gConfig.wattOption = WATT_RM_NO_RESTRICTION;
+#ifdef ENABLE_SDTM
+      gConfig.enAutoPowerTest = 0;
+#else
+      // default enable auto power test mode
+      gConfig.enAutoPowerTest = 1;
+#endif
+      gConfig.senMap = 0;
+#ifdef EN_SENSOR_ALS
+      gConfig.senMap |= sensorALS;
+#endif
+#ifdef EN_SENSOR_PIR
+      gConfig.senMap |= sensorPIR;
+#endif
+#ifdef EN_SENSOR_DHT
+      gConfig.senMap |= sensorDHT;
+#endif
+#ifdef EN_SENSOR_PM25
+      gConfig.senMap |= sensorDUST;
+#endif
+      
+      gConfig.funcMap = 0;
+      gConfig.alsLevel[0] = 70;
+      gConfig.alsLevel[1] = 80;
+      gConfig.pirLevel[0] = 0;
+      gConfig.pirLevel[1] = 0; 
+      
+      gConfig.ring[0].State = 1;
+      gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+#ifdef XSUNNY
+      gConfig.ring[0].CCT = CT_MIN_VALUE;
+#else
+      gConfig.ring[0].CCT = 0;
+      gConfig.ring[0].R = 128;
+      gConfig.ring[0].G = 64;
+      gConfig.ring[0].B = 100;
+#endif      
+      gConfig.ring[1] = gConfig.ring[0];
+      gConfig.ring[2] = gConfig.ring[0];
+    }
+    gIsConfigChanged = TRUE;
+    SaveConfig();
+  } else {
+    uint8_t bytVersion;
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, (uint8_t *)&bytVersion, sizeof(bytVersion));
+    if( bytVersion != gConfig.version ) gNeedSaveBackup = TRUE;
+  }
+  // Load the most recent status from FLASH
+  uint8_t pData[50];
+  memset(pData,0x00,sizeof(pData));
+  uint16_t nLen = (uint8_t *)(&gConfig.rfChannel) - (uint8_t *)(&gConfig);
+  Flash_ReadBuf(STATUS_DATA_ADDRESS, pData, nLen);
+  if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
+  { // status data valid    
+    memcpy(&gConfig,pData,nStatusLen);
+    if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) && !isNodeIdInvalid() )
+    { // valid nodeid but with default network config,can covered by status data or back data if they are valid
+      uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
+      if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
+      {
+        memcpy(gConfig.NetworkID,pData+networkOffset,sizeof(gConfig.NetworkID));
+      } 
+    } 
+  }
+  else
+  { // load backup area for status data
+    Flash_ReadBuf(BACKUP_CONFIG_ADDRESS, pData, nLen);
+    if(pData[0] >= XLA_MIN_VER_REQUIREMENT && pData[0] <= XLA_VERSION)
+    { // status data valid 
+      memcpy(&gConfig,pData,nStatusLen);
+      if(isIdentityEqual(gConfig.NetworkID, RF24_BASE_RADIO_ID, ADDRESS_WIDTH) && !isNodeIdInvalid())
+      { // valid nodeid but with default network config,can covered by status data or back data if they are valid
+        uint16_t networkOffset = (uint8_t *)(&gConfig.NetworkID) - (uint8_t *)(&gConfig);
+        if( !isIdentityEmpty(pData+networkOffset,sizeof(gConfig.NetworkID)) )
+        {
+          memcpy(gConfig.NetworkID,pData+networkOffset,sizeof(gConfig.NetworkID));
+        }        
+      }
+    }
+  }
+ 
+  if(IsStatusInvalid())
+  {
+    // default status value
+    gConfig.version = XLA_VERSION;
+    gConfig.ring[0].State = 1;
+    gConfig.ring[0].BR = DEFAULT_BRIGHTNESS;
+#ifdef XSUNNY
+    gConfig.ring[0].CCT = CT_MIN_VALUE;
+#else
+    gConfig.ring[0].CCT = 0;
+    gConfig.ring[0].R = 128;
+    gConfig.ring[0].G = 64;
+    gConfig.ring[0].B = 100;
+#endif      
+    gConfig.ring[1] = gConfig.ring[0];
+    gConfig.ring[2] = gConfig.ring[0];
+  }
+  
+  // Engineering Code
+  if(gConfig.type == devtypWBlackboard)
+  {
+#ifndef ENABLE_SDTM
+    gConfig.nodeID = 1;
+    gConfig.subID = 1;
+#endif
+  }
+  if(gConfig.rptTimes == 0 ) gConfig.rptTimes = 2;
+}
+
+void ResetNodeToRegister()
+{
+    mStatus = SYS_RESET;
+    InitNodeAddress();
+}
 
 bool WaitMutex(uint32_t _timeout) {
   while(_timeout--) {
@@ -666,7 +594,7 @@ bool SendMyMessage() {
     uint8_t lv_tried = 0;
     uint16_t delay;
     while (lv_tried++ <= gConfig.rptTimes ) {
-      
+      feed_wwdg();
       // delay to avoid conflict
       /*
       if( bDelaySend && gConfig.nodeID >= NODEID_MIN_DEVCIE ) {
@@ -699,7 +627,7 @@ bool SendMyMessage() {
           if( gConfig.cntRFReset >= MAX_RF_RESET_TIME ) {
             // Save Data
             gIsStatusChanged = TRUE;
-            SaveConfig();
+            SaveStatusData();
             
 #ifdef NO_RESTART_MODE
             // Reset whole node
@@ -752,14 +680,14 @@ bool SendMyMessage() {
 void GotNodeID() {
   mGotNodeID = TRUE;
   UpdateNodeAddress(NODEID_GATEWAY);
-  SaveConfig();
+  gNeedSaveBackup = TRUE;
 }
 
 void GotPresented() {
   mStatus = SYS_RUNNING;
   gConfig.swTimes = 0;
   gIsStatusChanged = TRUE;
-  SaveConfig();
+  //SaveStatusData();
 }
 
 void PrintDevStatus()
@@ -781,9 +709,9 @@ void ProcessAutoSwitchLight()
 {
   if(gConfig.enAutoPowerTest)
   {
-    if(gRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
+    if(gAgingRunningTimeTick >= SUNNY_SWITCH_INTERVAL)
     {// switch light cct
-      gRunningTimeTick = 0;
+      gAgingRunningTimeTick = 0;
       SetDeviceBrightness(100,0);
       if(DEVST_WarmCold >=3000 && DEVST_WarmCold <= 6000)
       {
@@ -810,13 +738,14 @@ bool SayHelloToDevice(bool infinate) {
   UpdateNodeAddress(NODEID_GATEWAY);
 
   while(mStatus < SYS_RUNNING) {
+    feed_wwdg();
     ////////////rfscanner process///////////////////////////////
     ProcessOutputCfgMsg(); 
     ProcessAutoSwitchLight();
     // Save Config if Changed
-    SendMyMessage();
-    ResetRFModule();
     SaveConfig();
+    SendMyMessage();
+
     ////////////rfscanner process///////////////////////////////
     if( _count++ == 0 ) {
       
@@ -871,7 +800,7 @@ bool SayHelloToDevice(bool infinate) {
     if( _count >= 10 && gConfig.swTimes > 0 ) {
       gConfig.swTimes = 0;
       gIsStatusChanged = TRUE;
-      SaveConfig();
+      SaveStatusData();
     }
     
     // Feed the Watchdog
@@ -891,6 +820,21 @@ bool SayHelloToDevice(bool infinate) {
   }
   
   return TRUE;
+}
+
+void RestartCheck()
+{
+  if(gConfig.enAutoPowerTest) return;
+#ifdef XSUNNY
+  if(pwm_Cold == 0 && pwm_Warm == 0)
+  {
+    if( (!gIsStatusChanged && gRunningTimeTick >= SUNNY_RUNNING_MAXTIME) || gMainloopTimeTick >= MAINLOOP_TIMEOUT )
+    {
+      printlog("need restart!");
+      WWDG->CR = 0x80;
+    }
+  }
+#endif
 }
 
 int main( void ) {
@@ -931,13 +875,14 @@ int main( void ) {
   if( gConfig.swTimes >= ONOFF_RESET_TIMES ) {
     gConfig.swTimes = 0;
     gConfig.enSDTM = 0;
-    gConfig.nodeID = BASESERVICE_ADDRESS;
+    //engineering code(don't need to change nodeid)
+    //gConfig.nodeID = BASESERVICE_ADDRESS;
     InitNodeAddress();
     gIsStatusChanged = TRUE;
   } else {
     gIsStatusChanged = TRUE;
   }
-  SaveConfig();
+  SaveStatusData();
   
   // Init Watchdog
   wwdg_init();
@@ -993,19 +938,20 @@ int main( void ) {
     
     // Bring the lights to the most recent or default light-on status
     if( mStatus == SYS_INIT ) {
-      if( gConfig.cntRFReset < MAX_RF_RESET_TIME ) {
-        // Restore to previous state
-        bool preSwitch = DEVST_OnOff;
-        DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
-        SetDeviceFilter(gConfig.filter);
-        SetDeviceOnOff(preSwitch, RING_ID_ALL);
-        //delay_ms(1500);   // about 1.5 sec
-        mutex = 0;
-        WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
-      } else {
+      if( gConfig.cntRFReset >= MAX_RF_RESET_TIME ) {
         gConfig.cntRFReset = 0;
+        gIsStatusChanged = TRUE;
         printlog("rf reset");
       }
+      // Restore to previous state
+      bool preSwitch = DEVST_OnOff;
+      DEVST_OnOff = 0;        // Make sure switch can be turned on if previous state is on
+      SetDeviceFilter(gConfig.filter);
+      SetDeviceOnOff(preSwitch, RING_ID_ALL);
+      //delay_ms(1500);   // about 1.5 sec
+      mutex = 0;
+      WaitMutex(0xFFFF); // use this line to bring the lights to target brightness
+      printlog("restore...");
     }
   
     // IRQ
@@ -1030,7 +976,7 @@ int main( void ) {
       // Must establish connection firstly
       SayHelloToDevice(TRUE);
       gConfig.enAutoPowerTest = 0;
-      gIsChanged = TRUE;
+      gIsStatusChanged = TRUE;
     }
 #endif
     //PrintDevStatus();
@@ -1160,15 +1106,13 @@ int main( void ) {
 #endif      
       ////////////rfscanner process///////////////////////////////
       ProcessOutputCfgMsg(); 
-      // reset rf
-      ResetRFModule();
+      // Save Config if Changed
+      SaveConfig();
       ////////////rfscanner process///////////////////////////////     
       // Send message if ready
       //printlog("SndS");
       SendMyMessage();
       //printlog("SndE");
-      // Save Config if Changed
-      SaveConfig();
       //printlog("SvgE");
       if(offdelaytick == 0)
       {
@@ -1177,6 +1121,7 @@ int main( void ) {
         SetDeviceOnOff(0, RING_ID_ALL);
         printlog("soffE");
       }
+      RestartCheck();
       // Idle process, do it in timer4
       //idleProcess();
       
@@ -1476,7 +1421,7 @@ bool SetDeviceBrightness(uint8_t _br, uint8_t _ring) {
   
 #else
   
-  if( _br != DEVST_Bright ) {
+  if( _br != DEVST_Bright || DEVST_OnOff == DEVICE_SW_OFF) {
 #ifdef GRADUAL_ONOFF    
     // Smoothly change brightness - set parameters
     delay_from[DELAY_TIM_BR] = DEVST_Bright;
@@ -1949,13 +1894,22 @@ void tmrProcess() {
   }  
   if(gConfig.enAutoPowerTest)
   {
-    if(gRunningTimeTick < SUNNY_SWITCH_INTERVAL)
+    if(gAgingRunningTimeTick < SUNNY_SWITCH_INTERVAL)
     {
-      gRunningTimeTick++;
+      gAgingRunningTimeTick++;
     }
+  }
+  if(gRunningTimeTick < SUNNY_RUNNING_MAXTIME)
+  {
+    gRunningTimeTick++;
+  }
+  if(gMainloopTimeTick < MAINLOOP_TIMEOUT)
+  {
+    gMainloopTimeTick++;
   }
   // Save config into backup area
    SaveBackupConfig();
+   RestartCheck();
 }
 
 // Execute delayed operations
